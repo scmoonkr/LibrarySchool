@@ -1,0 +1,22 @@
+{
+  "name": "one-minute-bible",
+  "private": true,
+  "scripts": {
+    "dev:server": "pnpm --dir server run dev",
+    "dev:libraryschool": "pnpm --dir apps/libraryschool exec nuxt dev --port 8801",
+    "dev:bookscent": "pnpm --dir apps/bookscent exec nuxt dev --port 8802",
+    "build:server": "pnpm --dir server run build",
+    "build:libraryschool": "pnpm --dir apps/libraryschool run build",
+    "build:bookscent": "pnpm --dir apps/bookscent run build",
+    "build:all": "pnpm run build:server && pnpm run build:libraryschool && pnpm run build:bookscent",
+    "start:server": "pnpm --dir server run start",
+    "start:libraryschool": "pnpm --dir apps/libraryschool run start",
+    "start:bookscent": "pnpm --dir apps/bookscent run start",
+    "install:all": "pnpm --dir server install && pnpm --dir apps/libraryschool install && pnpm --dir apps/bookscent install"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "puppeteer"
+    ]
+  }
+}

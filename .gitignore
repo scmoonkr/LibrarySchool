@@ -1,0 +1,46 @@
+node_modules/
+**/node_modules/
+
+# pnpm 워크스페이스이므로 pnpm-lock.yaml 만 쓴다.
+# 루트에서 npm/yarn 을 실수로 돌렸을 때 생기는 락파일은 무시한다.
+package-lock.json
+**/package-lock.json
+yarn.lock
+**/yarn.lock
+
+.env
+.env.*
+!.env.example
+
+dist/
+build/
+coverage/
+.next/
+out/
+.vite/
+.turbo/
+.nuxt/
+**/.nuxt/
+.output/
+**/.output/
+
+*.tsbuildinfo
+
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+*.zip
+
+# 업로드된 미디어(런타임 데이터)는 소스에 넣지 않는다.
+uploads/
+**/uploads/
+
+# topical 은 LLM 으로 글을 만드는 작업 폴더다.
+# 내보낸 주제 json 과 LLM 결과물이 오가는 자리라 저장소에는 넣지 않는다.
+contents/topical/
+
+.DS_Store
+Thumbs.db
