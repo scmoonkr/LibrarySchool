@@ -5,6 +5,10 @@ import bibleRouter from './modules/bible/bible.routes.js';
 import reflectionRouter from './modules/reflections/reflection.routes.js';
 import readingRouter from './modules/reading/reading.routes.js';
 import customerRouter from './modules/orderm/customer.routes.js';
+import orderRouter from './modules/orderm/order.routes.js';
+import orderListRouter from './modules/orderm/orderlist.routes.js';
+import bookRouter from './modules/orderm/book.routes.js';
+import dreamerRouter from './modules/orderm/dreamer.routes.js';
 import cmsHandler from './modules/cms/index.mjs';
 import { attachCmsSession } from './modules/cms/session-bridge.js';
 import { getConfig } from './modules/cms/config.mjs';
@@ -53,6 +57,10 @@ app.use('/api/bible', bibleRouter);
 app.use('/api/reflections', reflectionRouter);
 app.use('/api/reading', readingRouter);
 app.use('/api/orderm/customers', customerRouter);
+app.use('/api/orderm/orders', orderRouter);
+app.use('/api/orderm/order-list', orderListRouter);
+app.use('/api/orderm/books', bookRouter);
+app.use('/api/orderm/dreamer', dreamerRouter);
 
 app.use((error, req, res, next) => {
   console.error(error);

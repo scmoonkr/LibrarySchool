@@ -101,6 +101,24 @@ export function getDatabase() {
   return db;
 }
 
+// 외부 도서 DB(Reading). 같은 MongoClient 를 재사용해 다른 DB 핸들만 돌려준다.
+export function getReadingDatabase() {
+  if (!client) {
+    throw new Error('Database connection has not been initialized.');
+  }
+
+  return client.db(env.readingDbName);
+}
+
+// Dreamer 연동 DB. 같은 MongoClient 재사용.
+export function getDreamerDatabase() {
+  if (!client) {
+    throw new Error('Database connection has not been initialized.');
+  }
+
+  return client.db(env.dreamerDbName);
+}
+
 export async function closeDatabase() {
   if (client) {
     await client.close();

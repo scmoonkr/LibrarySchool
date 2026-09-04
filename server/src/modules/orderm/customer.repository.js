@@ -27,10 +27,20 @@ export async function listCustomers({ q } = {}) {
     .toArray();
 }
 
+// 정수 자동증가 id: 현재 최대 id + 1 (없으면 1).
+export async function getNextCustomerId() {
+  const database = getDatabase();
+  const latest = await database
+    .collection(COLLECTION_NAME)
+    .find({}, { sort: { id: -1 }, projection: { _id: 0, id: 1 }, limit: 1 })
+    .next();
+  return Number(latest?.id || 0) + 1;
+}
+
 export async function findCustomerById(id) {
   const database = getDatabase();
   return database.collection(COLLECTION_NAME).findOne(
-    { id: String(id) },
+    { id: Number(id) },
     { projection: { _id: 0 } },
   );
 }
@@ -45,7 +55,7 @@ export async function insertCustomer(document) {
 export async function updateCustomerById(id, fields) {
   const database = getDatabase();
   const result = await database.collection(COLLECTION_NAME).findOneAndUpdate(
-    { id: String(id) },
+    { id: Number(id) },
     { $set: fields },
     { returnDocument: 'after', projection: { _id: 0 } },
   );
@@ -56,6 +66,6 @@ export async function updateCustomerById(id, fields) {
 
 export async function deleteCustomerById(id) {
   const database = getDatabase();
-  const result = await database.collection(COLLECTION_NAME).deleteOne({ id: String(id) });
+  const result = await database.collection(COLLECTION_NAME).deleteOne({ id: Number(id) });
   return result.deletedCount > 0;
 }

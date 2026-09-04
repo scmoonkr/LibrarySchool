@@ -41,23 +41,23 @@
             <thead>
               <tr>
                 <th>법인명</th>
+                <th>지점</th>
                 <th>사업자등록번호</th>
                 <th>담당자</th>
                 <th>전화</th>
                 <th>이메일</th>
                 <th>주소</th>
-                <th>비고</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="item in paged" :key="item.id" @click="openEdit(item)">
                 <td><strong>{{ item.name }}</strong></td>
+                <td>{{ item.branch || '-' }}</td>
                 <td class="mono">{{ item.bizno || '-' }}</td>
                 <td>{{ inchargeLabel(item) }}</td>
                 <td class="mono">{{ item.phone || '-' }}</td>
                 <td>{{ item.email || '-' }}</td>
                 <td>{{ addressLabel(item) }}</td>
-                <td>{{ item.note || '-' }}</td>
               </tr>
             </tbody>
           </table>
@@ -87,13 +87,13 @@
             </label>
 
             <label class="theme-form-field">
-              <span>사업자등록번호</span>
-              <input v-model="form.bizno" name="bizno" maxlength="40" placeholder="000-00-00000" />
+              <span>지점</span>
+              <input v-model="form.branch" name="branch" maxlength="120" />
             </label>
 
             <label class="theme-form-field">
-              <span>대표 이메일</span>
-              <input v-model="form.email" name="email" type="email" maxlength="120" />
+              <span>사업자등록번호</span>
+              <input v-model="form.bizno" name="bizno" maxlength="40" placeholder="000-00-00000" />
             </label>
 
             <label class="theme-form-field">
@@ -104,6 +104,11 @@
             <label class="theme-form-field">
               <span>우편번호</span>
               <input v-model="form.zipcode" name="zipcode" maxlength="20" />
+            </label>
+
+            <label class="theme-form-field">
+              <span>대표 이메일</span>
+              <input v-model="form.email" name="email" type="email" maxlength="120" />
             </label>
 
             <label class="theme-form-field customer-field-wide">
@@ -119,6 +124,13 @@
               <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="addIncharge">+ 담당자 추가</button>
             </div>
             <div v-if="!form.incharge.length" class="customer-incharge-empty">등록된 담당자가 없습니다.</div>
+            <div v-else class="customer-incharge-row customer-incharge-labels">
+              <span>이름</span>
+              <span>전화</span>
+              <span>이메일</span>
+              <span>부서명</span>
+              <span></span>
+            </div>
             <div v-for="(person, idx) in form.incharge" :key="idx" class="customer-incharge-row">
               <input v-model="person.name" placeholder="이름" maxlength="80" />
               <input v-model="person.phone" placeholder="전화" maxlength="40" />
@@ -177,8 +189,9 @@ definePageMeta({ layout: 'insure' })
 
 type Incharge = { name: string; phone: string; email: string; dept: string }
 type Customer = {
-  id: string
+  id: number         // 정수 자동증가
   name: string       // 법인명
+  branch: string     // 지점
   bizno: string      // 사업자등록번호
   incharge: Incharge[]
   email: string
@@ -238,7 +251,7 @@ function fileHref(url: string) {
 
 // ── 모달/폼 상태 ──────────────────────────────────────────────
 const isEditorOpen = ref(false)
-const editingId = ref<string | null>(null)
+const editingId = ref<number | null>(null)
 const isNew = computed(() => editingId.value === null)
 const isSaving = ref(false)
 const isUploading = ref(false)
@@ -247,11 +260,12 @@ const isError = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 const form = reactive<Omit<Customer, 'id' | 'createdAt' | 'updatedAt'>>({
-  name: '', bizno: '', incharge: [], email: '', phone: '', zipcode: '', address: '', image: '', note: '',
+  name: '', branch: '', bizno: '', incharge: [], email: '', phone: '', zipcode: '', address: '', image: '', note: '',
 })
 
 function resetForm(src?: Customer) {
   form.name = src?.name ?? ''
+  form.branch = src?.branch ?? ''
   form.bizno = src?.bizno ?? ''
   form.incharge = (src?.incharge ?? []).map((p) => ({ ...p }))
   form.email = src?.email ?? ''
@@ -363,6 +377,11 @@ async function remove() {
 </script>
 
 <style scoped>
+/* 담당자 4열 입력이 들어가므로 기본(520px)보다 넓게. */
+.theme-backend-user-drawer {
+  width: min(100%, 900px);
+}
+
 .customer-field-wide {
   grid-column: 1 / -1;
 }
@@ -397,6 +416,14 @@ async function remove() {
   border: 1px solid var(--theme-line);
   border-radius: 8px;
   font-size: 13px;
+}
+/* 담당자 열 라벨 헤더 줄 */
+.customer-incharge-labels {
+  margin-bottom: 4px;
+  padding: 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--theme-fg-faint);
 }
 .customer-incharge-remove {
   border: 1px solid var(--theme-line);

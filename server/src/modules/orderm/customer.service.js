@@ -1,6 +1,7 @@
 import {
   deleteCustomerById,
   findCustomerById,
+  getNextCustomerId,
   insertCustomer,
   listCustomers,
   updateCustomerById,
@@ -10,10 +11,6 @@ function appError(message, statusCode = 400) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
-}
-
-function buildId() {
-  return `cust_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function str(value, max = 500) {
@@ -42,6 +39,7 @@ function normalizeCustomer(body = {}) {
 
   return {
     name,
+    branch: str(body.branch, 120),
     bizno: str(body.bizno, 40),
     incharge: normalizeIncharge(body.incharge),
     email: str(body.email, 120),
@@ -60,7 +58,7 @@ export async function getCustomers(query = {}) {
 export async function createCustomer(body = {}) {
   const now = new Date().toISOString();
   const document = {
-    id: buildId(),
+    id: await getNextCustomerId(),
     ...normalizeCustomer(body),
     createdAt: now,
     updatedAt: now,

@@ -17,6 +17,14 @@ const mongoCollectionBibleEdit =
 const mongoCollectionVerseTopics =
   process.env.MONGODB_COLLECTION_VERSE_TOPICS || 'verse_topics';
 
+// 외부 도서 DB(Reading.books) — 주문도서 검색용. 같은 MongoDB 서버의 다른 DB.
+const readingDbName = process.env.MONGODB_READING || 'Reading';
+const booksCollection = process.env.MONGODB_COLLECTION_BOOKS || 'books';
+
+// Dreamer 연동 DB(Dreamer.cybOrder) — 정가조회 결과 전송용.
+const dreamerDbName = process.env.MONGODB_DREAMER || 'Dreamer';
+const cybOrderCollection = process.env.MONGODB_COLLECTION_CYBORDER || 'cybOrder';
+
 const mongoUsername = process.env.MONGO_USERNAME || '';
 const mongoPassword = process.env.MONGO_PWD || '';
 const mongoAuthSource = process.env.MONGODB_AUTH_SOURCE || '';
@@ -53,6 +61,10 @@ export const env = {
   port,
   mongoUri,
   mongoDbName,
+  readingDbName,
+  booksCollection,
+  dreamerDbName,
+  cybOrderCollection,
   mongoCollectionBibleEdit,
   mongoCollectionVerseTopics,
   jwtAccessSecret,
