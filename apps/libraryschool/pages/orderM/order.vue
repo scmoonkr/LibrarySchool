@@ -47,8 +47,8 @@
                 <th>지점</th>
                 <th>주문명</th>
                 <th>상태</th>
-                <th>주문일자</th>
                 <th class="col-num">주문금액</th>
+                <th>주문일자</th>
                 <th>출고일자</th>
               </tr>
             </thead>
@@ -59,8 +59,8 @@
                 <td>{{ item.branch || '-' }}</td>
                 <td>{{ item.ordername || '-' }}</td>
                 <td><span :class="['order-status', statusClass(item.status)]">{{ item.status }}</span></td>
-                <td class="mono">{{ item.order_date || '-' }}</td>
                 <td class="col-num mono">{{ formatPrice(item.order_price) }}</td>
+                <td class="mono">{{ item.order_date || '-' }}</td>
                 <td class="mono">{{ item.delivery_date || '-' }}</td>
               </tr>
             </tbody>
@@ -146,12 +146,20 @@
             <div class="order-actions-right">
               <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="closeEditor">취소</button>
               <button type="submit" class="theme-form-submit" :disabled="isSaving">{{ isSaving ? '저장 중...' : '저장' }}</button>
+              <button v-if="!isNew" type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="openProgress">처리현황</button>
               <button v-if="!isNew" type="button" class="theme-form-submit theme-form-submit-secondary" @click="goToOrderList">주문도서</button>
             </div>
           </div>
         </form>
       </div>
     </div>
+
+    <!-- 처리현황 — 주문도서(orderList) 화면과 같은 컴포넌트를 쓴다. -->
+    <OrderProgressModal
+      v-if="isProgressOpen"
+      :order-no="editingNo"
+      @close="isProgressOpen = false"
+    />
 
     <!-- 거래처 검색 모달 (주문 drawer 위에 겹쳐 뜬다) -->
     <div v-if="isCustomerSearchOpen" class="customer-search-modal" @click="closeCustomerSearch">
@@ -192,6 +200,7 @@
 <script setup lang="ts">
 import DefaultThemeTopbar from '~/components/public/DefaultThemeTopbar.vue'
 import OrderSidebar from '~/components/orderM/OrderSidebar.vue'
+import OrderProgressModal from '~/components/orderM/OrderProgressModal.vue'
 
 // 화면 구성은 backend 와 동일(insure 레이아웃 + theme-backend). 인증 가드는
 // 로그인/권한이 준비되면 middleware: 'backend' 를 추가한다.
@@ -268,6 +277,21 @@ function formatPrice(v: number) {
   return `${(v ?? 0).toLocaleString('ko-KR')}원`
 }
 
+// input[type=date] 가 쓰는 YYYY-MM-DD. 로컬 기준이라 toISOString() 은 쓰지 않는다.
+function ymd(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+function todayStr() {
+  return ymd(new Date())
+}
+// base(YYYY-MM-DD) 에서 days 일 뒤. base 가 없으면 오늘 기준.
+function addDays(base: string, days: number) {
+  const d = base ? new Date(`${base}T00:00:00`) : new Date()
+  if (Number.isNaN(d.getTime())) return ''
+  d.setDate(d.getDate() + days)
+  return ymd(d)
+}
+
 // ── 모달/폼 상태 ──────────────────────────────────────────────
 const isEditorOpen = ref(false)
 const editingNo = ref<number | null>(null)
@@ -311,6 +335,14 @@ function closeEditor() {
 function goToOrderList() {
   if (editingNo.value == null) return
   navigateTo(`/orderM/orderList?orderNo=${editingNo.value}`)
+}
+
+// ── 처리현황 ─────────────────────────────────────────────────
+// 실제 집계/표시는 OrderProgressModal 이 주문번호로 직접 조회해서 한다.
+const isProgressOpen = ref(false)
+function openProgress() {
+  if (editingNo.value == null) return
+  isProgressOpen.value = true
 }
 
 // ── 거래처 검색/선택 ─────────────────────────────────────────
@@ -367,6 +399,10 @@ async function save() {
     message.value = '고객명은 필수입니다.'
     return
   }
+  // 날짜 기본값 — 비어 있을 때만 채운다. 주문일자는 오늘, 출고일자는 주문일자 +3일.
+  if (!form.order_date) form.order_date = todayStr()
+  if (!form.delivery_date) form.delivery_date = addDays(form.order_date, 3)
+
   isSaving.value = true
   message.value = ''
   isError.value = false
@@ -449,6 +485,10 @@ async function remove() {
   display: flex;
   gap: 8px;
   margin-left: auto;
+}
+/* drawer 버튼 — .theme-form-submit 기본 150px 은 버튼이 늘면 줄바꿈이 나서 줄인다. */
+.order-actions .theme-form-submit {
+  min-width: 100px;
 }
 
 /* 고객명 입력 + 검색 아이콘 */

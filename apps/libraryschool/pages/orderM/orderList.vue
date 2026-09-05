@@ -19,7 +19,16 @@
           <div class="theme-backend-contents-head-left">
             <h1>주문도서.</h1>
             <div class="theme-backend-contents-filters">
-              <input v-model="ordernoFilter" type="search" name="ordernoFilter" placeholder="주문번호 검색" />
+              <input
+                v-model="ordernoFilter"
+                type="search"
+                name="ordernoFilter"
+                inputmode="numeric"
+                placeholder="주문번호"
+                @keyup.enter="applyOrderNo"
+                @search="applyOrderNo"
+              />
+              <button type="button" class="theme-form-submit theme-form-submit-secondary-soft ol-filter-btn" @click="applyOrderNo">조회</button>
               <input v-model="keyword" type="search" name="keyword" placeholder="서명 · ISBN · 출판사 · 발주처 검색" />
             </div>
           </div>
@@ -32,12 +41,14 @@
               @click="renumber"
             >{{ renumbering ? '설정 중...' : '번호설정' }}</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!selectedKeys.size" @click="openPurchase">발주</button>
+            <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!contextOrderNo" @click="isProgressOpen = true">처리현황</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!selectedKeys.size" @click="openShip">출고</button>
-            <button type="button" class="theme-form-submit" @click="openCreate">+ 도서 추가</button>
+            <button type="button" class="theme-form-submit" :disabled="!contextOrderNo" @click="openCreate">+ 도서 추가</button>
           </div>
         </div>
 
-        <div v-if="pending" class="theme-backend-state">불러오는 중...</div>
+        <div v-if="!contextOrderNo" class="theme-backend-state">주문번호를 입력하고 조회하세요.</div>
+        <div v-else-if="pending" class="theme-backend-state">불러오는 중...</div>
         <div v-else-if="!filtered.length" class="theme-backend-state">주문도서가 없습니다.</div>
 
         <section v-else class="theme-backend-table-wrap">
@@ -307,12 +318,20 @@
         </div>
       </div>
     </div>
+
+    <!-- 처리현황 — 주문(order) 화면과 같은 컴포넌트를 쓴다. -->
+    <OrderProgressModal
+      v-if="isProgressOpen"
+      :order-no="contextOrderNo"
+      @close="isProgressOpen = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import DefaultThemeTopbar from '~/components/public/DefaultThemeTopbar.vue'
 import OrderSidebar from '~/components/orderM/OrderSidebar.vue'
+import OrderProgressModal from '~/components/orderM/OrderProgressModal.vue'
 
 // 화면 구성은 backend 와 동일(insure 레이아웃 + theme-backend). 인증 가드는
 // 로그인/권한이 준비되면 middleware: 'backend' 를 추가한다.
@@ -353,16 +372,24 @@ const API = `${apiBase}/api/orderm/order-list`
 const isSidebarOpen = ref(false)
 // 주문 페이지에서 "주문도서" 로 넘어오면 ?orderNo=.. 로 해당 주문이 필터된다.
 const route = useRoute()
-const ordernoFilter = ref(String(route.query.orderNo ?? ''))
+const ordernoFilter = ref(String(route.query.orderNo ?? '').replace(/[^0-9]/g, ''))
+// 실제로 서버에 질의된 주문번호. 타이핑만으로는 바뀌지 않고 Enter/조회 버튼에서 반영된다.
+const appliedOrderNo = ref(ordernoFilter.value)
+function applyOrderNo() {
+  // 숫자만 남긴다. 빈 값이면 전체 목록.
+  ordernoFilter.value = ordernoFilter.value.replace(/[^0-9]/g, '')
+  appliedOrderNo.value = ordernoFilter.value
+}
 const keyword = ref('')
 const headerSearch = ref('')
 
 // 현재 주문 컨텍스트. 신규 도서는 이 주문번호에 속한다(drawer 에는 표시만).
 const contextOrderNo = computed(() => {
-  const n = Number(ordernoFilter.value)
+  const n = Number(appliedOrderNo.value)
   return Number.isFinite(n) && n > 0 ? n : null
 })
 const renumbering = ref(false)
+const isProgressOpen = ref(false)
 
 // ── 체크박스 선택 & 발주 ─────────────────────────────────────
 const SUPPLIERS = ['교보도매', '교보매장', '알라딘도매', '알라딘', '교보', 'Amazon', '기타'] as const
@@ -460,22 +487,32 @@ async function doShip() {
 }
 
 // 목록 (DB) — 클라이언트에서만 조회.
-const { data, pending, refresh } = await useFetch<{ ok: boolean; data: OrderListItem[] }>(API, {
-  key: 'orderm-order-list',
-  credentials: 'include',
-  server: false,
-  default: () => ({ ok: true, data: [] }),
-})
+// 조회된 주문번호가 있을 때만 서버를 부른다. 없으면 빈 목록이라 화면은 blank 상태가 된다.
+// contextOrderNo 가 바뀌면(=조회하면) 자동으로 다시 받아온다.
+const EMPTY_LIST = { ok: true, data: [] as OrderListItem[] }
+const { data, pending, refresh } = await useAsyncData(
+  'orderm-order-list',
+  () => {
+    const on = contextOrderNo.value
+    if (!on) return Promise.resolve(EMPTY_LIST)
+    return $fetch<{ ok: boolean; data: OrderListItem[] }>(`${API}?orderNo=${on}`, {
+      credentials: 'include',
+    })
+  },
+  {
+    server: false,
+    default: () => EMPTY_LIST,
+    watch: [contextOrderNo],
+  },
+)
 const items = computed<OrderListItem[]>(() => data.value?.data ?? [])
 
 const filtered = computed(() => {
-  const ono = ordernoFilter.value.trim()
   const q = keyword.value.trim().toLowerCase()
-  return items.value.filter((it) => {
-    if (ono && !String(it.orderNo).includes(ono)) return false
-    if (q && !(`${it.title} ${it.isbn} ${it.publisher} ${it.supplier}`.toLowerCase().includes(q))) return false
-    return true
-  })
+  if (!q) return items.value
+  return items.value.filter((it) => (
+    `${it.title} ${it.isbn} ${it.publisher} ${it.supplier}`.toLowerCase().includes(q)
+  ))
 })
 
 const STATUS_CLASS: Record<BookStatus, string> = {
@@ -730,6 +767,38 @@ async function remove() {
 </script>
 
 <style scoped>
+/* 헤더 필터 — drawer 검색 입력(.ol-drawer-search input)과 같은 모양 */
+.theme-backend-contents-filters input {
+  padding: 7px 12px;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  background: var(--theme-bg);
+  color: var(--theme-fg);
+  font-family: var(--theme-sans);
+  font-size: 13px;
+  outline: none;
+}
+.theme-backend-contents-filters input:focus {
+  border-color: var(--theme-accent);
+}
+.theme-backend-contents-filters input[name='ordernoFilter'] {
+  width: 120px;
+}
+.theme-backend-contents-filters input[name='keyword'] {
+  width: 280px;
+  max-width: 40vw;
+}
+/* 조회 버튼. .theme-form-submit 기본값(150px/46px)은 필터 줄에 너무 커서 낮춘다. */
+.theme-backend-head-right .theme-form-submit {
+  min-width: 100px;
+}
+.ol-filter-btn {
+  min-width: 100px;
+  min-height: 33px;
+  border-radius: 8px;
+  padding: 0 14px;
+}
+
 .col-num {
   text-align: right;
 }
