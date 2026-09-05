@@ -27,9 +27,9 @@ export function useSiteMenus() {
      },
     { label: '커뮤니티', to: '',
       children: [
-        { label: '공지사항', to: '/categories/notice' },
-        { label: 'News', to: '/categories/news' },
-        { label: '이벤트', to: '/categories/events' },
+        { label: '공지사항', to: '/categories/공지사항' },
+        { label: 'News', to: '/categories/뉴스' },
+        { label: '이벤트', to: '/categories/이벤트' },
       ]
      },
   ];
