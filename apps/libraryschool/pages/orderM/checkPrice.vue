@@ -26,6 +26,7 @@
               <span>주문번호</span>
               <input v-model="orderNo" type="text" name="orderNo" placeholder="예: 2" />
             </label>
+            <div class="cp-filter-actions">
             <button type="button" class="theme-form-submit" :disabled="busy || !rows.length" @click="lookupTitlePublisher">정가조회</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="busy" @click="triggerImport">엑셀읽기</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!rows.length" @click="exportExcel">엑셀저장</button>
@@ -35,6 +36,7 @@
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="busy || !rows.length" @click="dreamer">Dreamer</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="addRow">+ 도서추가</button>
             <input ref="fileInput" type="file" accept=".xlsx,.xls,.csv" class="cp-file" @change="onImport" />
+            </div>
           </div>
         </div>
 
@@ -600,6 +602,18 @@ async function dreamer() {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+/* 버튼 묶음은 오른쪽 정렬. 좁아져서 줄바꿈이 나도 오른쪽에 붙는다. */
+.cp-filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.cp-filter-actions .theme-form-submit {
+  min-width: 100px;
 }
 .cp-orderno {
   display: inline-flex;
