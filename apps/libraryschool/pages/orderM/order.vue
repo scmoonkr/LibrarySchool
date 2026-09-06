@@ -48,6 +48,7 @@
                 <th>주문명</th>
                 <th>상태</th>
                 <th class="col-num">주문금액</th>
+                <th>견적요청일</th>
                 <th>주문일자</th>
                 <th>출고일자</th>
               </tr>
@@ -60,6 +61,7 @@
                 <td>{{ item.ordername || '-' }}</td>
                 <td><span :class="['order-status', statusClass(item.status)]">{{ item.status }}</span></td>
                 <td class="col-num mono">{{ formatPrice(item.order_price) }}</td>
+                <td class="mono">{{ item.quote_date || '-' }}</td>
                 <td class="mono">{{ item.order_date || '-' }}</td>
                 <td class="mono">{{ item.delivery_date || '-' }}</td>
               </tr>
@@ -80,6 +82,24 @@
       <div class="theme-backend-user-drawer" @click.stop>
         <div class="theme-backend-user-drawer-head">
           <strong>{{ isNew ? '신규 주문' : `주문 #${editingNo}` }}</strong>
+
+          <!-- 상태 스텝. 현재 상태를 표시하고, 누르면 주문과 주문도서 상태를 함께 바꾼다.
+               '입고'는 입고검수에서 정해지는 값이라 표시만 하고 눌러도 동작하지 않는다. -->
+          <div v-if="!isNew" class="order-status-steps">
+            <button
+              v-for="step in STATUS_STEPS"
+              :key="step.value"
+              type="button"
+              :class="['order-status-step', {
+                'is-current': form.status === step.value,
+                'is-static': !step.clickable,
+              }]"
+              :disabled="step.clickable && bulkBusy"
+              :title="step.clickable ? `상태를 '${step.value}' 로 변경` : '입고는 입고검수에서 처리됩니다'"
+              @click="step.clickable ? applyStatus(step.value) : undefined"
+            >{{ step.label }}</button>
+          </div>
+
           <button type="button" class="theme-backend-close" aria-label="닫기" @click="closeEditor">×</button>
         </div>
 
@@ -111,10 +131,8 @@
             </label>
 
             <label class="theme-form-field">
-              <span>주문상태</span>
-              <select v-model="form.status" name="status">
-                <option v-for="s in STATUSES" :key="s" :value="s">{{ s }}</option>
-              </select>
+              <span>견적요청일자</span>
+              <input v-model="form.quote_date" name="quote_date" type="date" />
             </label>
 
             <label class="theme-form-field">
@@ -144,10 +162,30 @@
               @click="remove"
             >삭제</button>
             <div class="order-actions-right">
-              <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="closeEditor">취소</button>
-              <button type="submit" class="theme-form-submit" :disabled="isSaving">{{ isSaving ? '저장 중...' : '저장' }}</button>
+              <button
+                v-if="!isNew"
+                type="button"
+                class="theme-form-submit theme-form-submit-secondary-soft"
+                :disabled="bulkBusy"
+                @click="applyOrdered"
+              >주문</button>
+              <button
+                v-if="!isNew"
+                type="button"
+                class="theme-form-submit theme-form-submit-secondary-soft"
+                :disabled="bulkBusy"
+                @click="applyPurchased"
+              >발주</button>
+              <button
+                v-if="!isNew"
+                type="button"
+                class="theme-form-submit theme-form-submit-secondary-soft"
+                :disabled="bulkBusy"
+                @click="applyShipped"
+              >출고</button>
               <button v-if="!isNew" type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="openProgress">처리현황</button>
               <button v-if="!isNew" type="button" class="theme-form-submit theme-form-submit-secondary" @click="goToOrderList">주문도서</button>
+              <button type="submit" class="theme-form-submit" :disabled="isSaving">{{ isSaving ? '저장 중...' : '저장' }}</button>
             </div>
           </div>
         </form>
@@ -216,6 +254,7 @@ type Order = {
   branch: string        // 지점명
   ordername: string     // 주문명
   order_price: number   // 주문금액
+  quote_date: string    // 견적요청일자 (YYYY-MM-DD)
   order_date: string    // 주문일자 (YYYY-MM-DD)
   delivery_date: string // 출고일자
   status: OrderStatus
@@ -301,7 +340,8 @@ const message = ref('')
 const isError = ref(false)
 
 const form = reactive<Omit<Order, 'orderno' | 'createdAt' | 'updatedAt'>>({
-  customer: '', branch: '', ordername: '', order_price: 0, order_date: '', delivery_date: '', status: '견적요청', note: '',
+  customer: '', branch: '', ordername: '', order_price: 0,
+  quote_date: '', order_date: '', delivery_date: '', status: '견적요청', note: '',
 })
 
 function resetForm(src?: Order) {
@@ -309,6 +349,7 @@ function resetForm(src?: Order) {
   form.branch = src?.branch ?? ''
   form.ordername = src?.ordername ?? ''
   form.order_price = src?.order_price ?? 0
+  form.quote_date = src?.quote_date ?? ''
   form.order_date = src?.order_date ?? ''
   form.delivery_date = src?.delivery_date ?? ''
   form.status = src?.status ?? '견적요청'
@@ -335,6 +376,110 @@ function closeEditor() {
 function goToOrderList() {
   if (editingNo.value == null) return
   navigateTo(`/orderM/orderList?orderNo=${editingNo.value}`)
+}
+
+// drawer 헤더의 상태 스텝. 순서는 견적요청 → 주문 → 발주 → 입고 → 출고.
+// '입고'는 입고검수(스캔)에서 정해지는 값이라 버튼으로 바꾸지 않는다.
+const STATUS_STEPS: { value: OrderStatus; label: string; clickable: boolean }[] = [
+  { value: '견적요청', label: '견적', clickable: true },
+  { value: '주문', label: '주문', clickable: true },
+  { value: '발주', label: '발주', clickable: true },
+  { value: '입고', label: '입고', clickable: false },
+  { value: '출고', label: '출고', clickable: true },
+]
+
+// 상태 스텝 클릭 — 주문과 그 주문도서 전체의 상태를 같은 값으로 맞춘다.
+// 발주처·수량·날짜는 건드리지 않는다. 그건 아래 발주/출고 버튼이 하는 일이다.
+function applyStatus(status: OrderStatus) {
+  return runBulk(
+    `상태를 '${status}' 로`,
+    `주문 #${editingNo.value} 와 그 도서 전체의 상태를 '${status}' 로 바꿀까요?`,
+    (orderNo) => $fetch(`${apiBase}/api/orderm/order-list/set-status`, {
+      method: 'POST',
+      credentials: 'include',
+      body: { orderNo, status },
+    }),
+    status,
+  )
+}
+
+// ── 주문도서 일괄 처리 (주문 / 발주 / 출고) ─────────────────
+// 이 주문에 속한 order_list 전체가 대상이다. 되돌리기 어려우니 한 번 확인받는다.
+const PURCHASE_SUPPLIER = '교보도매'
+const bulkBusy = ref(false)
+
+// orderStatus 를 주면 주문도서뿐 아니라 주문(orders) 자체의 상태도 같이 바꾼다.
+// 주문 저장은 전체 폼을 보내는 방식이라, 이때 drawer 에 떠 있는 값이 함께 저장된다.
+async function runBulk(
+  label: string,
+  confirmText: string,
+  run: (orderNo: number) => Promise<unknown>,
+  orderStatus?: OrderStatus,
+) {
+  if (editingNo.value == null || bulkBusy.value) return
+  if (!window.confirm(confirmText)) return
+
+  bulkBusy.value = true
+  message.value = ''
+  isError.value = false
+  try {
+    await run(editingNo.value)
+    if (orderStatus) {
+      form.status = orderStatus
+      await $fetch(`${API}/${editingNo.value}`, {
+        method: 'PUT',
+        credentials: 'include',
+        body: { ...form },
+      })
+    }
+    await refresh()
+    message.value = `${label} 처리했습니다.`
+  } catch (err: any) {
+    isError.value = true
+    message.value = err?.data?.message || `${label} 처리에 실패했습니다.`
+  } finally {
+    bulkBusy.value = false
+  }
+}
+
+// 주문 자체와 주문도서 전체 상태를 '주문' 으로.
+function applyOrdered() {
+  return runBulk(
+    '주문으로',
+    `주문 #${editingNo.value} 와 그 도서 전체의 상태를 '주문' 으로 바꿀까요?`,
+    (orderNo) => $fetch(`${apiBase}/api/orderm/order-list/set-status`, {
+      method: 'POST',
+      credentials: 'include',
+      body: { orderNo, status: '주문' },
+    }),
+    '주문',
+  )
+}
+
+// 주문 상태를 '발주' 로, 주문도서 전체를 발주처 '교보도매' + 상태 '발주' 로.
+function applyPurchased() {
+  return runBulk(
+    '발주로',
+    `주문 #${editingNo.value} 의 상태와 그 도서 전체를 발주처 '${PURCHASE_SUPPLIER}', 상태 '발주' 로 바꿀까요?`,
+    (orderNo) => $fetch(`${apiBase}/api/orderm/order-list/set-status`, {
+      method: 'POST',
+      credentials: 'include',
+      body: { orderNo, status: '발주', supplier: PURCHASE_SUPPLIER },
+    }),
+    '발주',
+  )
+}
+
+// 주문도서 전체를 출고 처리. 입고수량을 출고수량으로 옮기고, 주문수량을 다 채운
+// 도서만 '출고', 덜 들어온 도서는 '입고' 가 된다. (주문도서 화면의 출고와 같은 규칙)
+function applyShipped() {
+  const date = form.delivery_date || todayStr()
+  return runBulk('출고', `주문 #${editingNo.value} 의 모든 도서를 출고 처리할까요? (출고일자 ${date})`, (orderNo) =>
+    $fetch(`${apiBase}/api/orderm/order-list/shipping`, {
+      method: 'POST',
+      credentials: 'include',
+      body: { orderNo, delivery_date: date },
+    }))
 }
 
 // ── 처리현황 ─────────────────────────────────────────────────
@@ -488,7 +633,47 @@ async function remove() {
 }
 /* drawer 버튼 — .theme-form-submit 기본 150px 은 버튼이 늘면 줄바꿈이 나서 줄인다. */
 .order-actions .theme-form-submit {
-  min-width: 100px;
+  min-width: 80px;
+}
+
+/* drawer 헤더 상태 스텝 */
+.order-status-steps {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  margin-right: 12px;
+}
+.order-status-step {
+  appearance: none;
+  padding: 5px 12px;
+  border: 1px solid var(--theme-line);
+  border-radius: 999px;
+  background: var(--theme-bg);
+  color: var(--theme-fg-dim);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.order-status-step:hover:not(:disabled):not(.is-static) {
+  border-color: var(--theme-fg-dim);
+  color: var(--theme-fg);
+}
+.order-status-step:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* 입고 — 표시 전용. 눌러도 아무 일도 없다는 걸 커서로 알린다. */
+.order-status-step.is-static {
+  cursor: default;
+  border-style: dashed;
+}
+.order-status-step.is-current {
+  border-color: var(--theme-fg);
+  background: var(--theme-fg);
+  color: var(--theme-bg);
 }
 
 /* 고객명 입력 + 검색 아이콘 */

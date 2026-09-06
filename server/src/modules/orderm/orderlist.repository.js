@@ -39,6 +39,50 @@ export async function replaceOrderListByOrderNo(orderNo, docs) {
 
 // 출고: 선택한 (orderNo, no) 들에 status='출고', 출고일자(delivery_date),
 // 그리고 입고수량(warehousing_count)을 출고수량(delivery_count)으로 저장.
+// 출고 처리 시 적용하는 $set 스테이지. 선택 목록 출고와 주문 단위 출고가 공유한다.
+function shippingSetStage(deliveryDate, now) {
+  return {
+    $set: {
+      delivery_count: { $ifNull: ['$warehousing_count', 0] },
+      status: {
+        $cond: [
+          {
+            $gte: [
+              { $ifNull: ['$warehousing_count', 0] },
+              { $ifNull: ['$qty', 0] },
+            ],
+          },
+          '출고',
+          '입고',
+        ],
+      },
+      delivery_date: String(deliveryDate || ''),
+      updatedAt: now,
+    },
+  };
+}
+
+// 주문번호 하나에 속한 모든 도서를 출고 처리한다. (주문 화면의 '출고' 버튼)
+export async function bulkSetShippingByOrderNo(orderNo, deliveryDate) {
+  const col = getDatabase().collection(COLLECTION_NAME);
+  const now = new Date().toISOString();
+  const result = await col.updateMany(
+    { orderNo: Number(orderNo) },
+    [shippingSetStage(deliveryDate, now)],
+  );
+  return result.modifiedCount ?? 0;
+}
+
+// 주문번호 하나에 속한 모든 도서의 상태(와 필요하면 발주처)를 통째로 바꾼다.
+// 주문 화면의 '주문' / '발주' 버튼이 쓴다. 조건 없이 전부 덮어쓴다.
+export async function bulkSetStatusByOrderNo(orderNo, status, supplier) {
+  const col = getDatabase().collection(COLLECTION_NAME);
+  const set = { status, updatedAt: new Date().toISOString() };
+  if (supplier != null) set.supplier = String(supplier);
+  const result = await col.updateMany({ orderNo: Number(orderNo) }, { $set: set });
+  return result.modifiedCount ?? 0;
+}
+
 export async function bulkSetShipping(keys, deliveryDate) {
   const col = getDatabase().collection(COLLECTION_NAME);
   const now = new Date().toISOString();
@@ -47,17 +91,9 @@ export async function bulkSetShipping(keys, deliveryDate) {
     .map((k) => ({
       updateOne: {
         filter: { orderNo: Number(k.orderNo), no: Number(k.no) },
-        // 파이프라인 업데이트로 기존 warehousing_count 를 delivery_count 로 복사.
-        update: [
-          {
-            $set: {
-              status: '출고',
-              delivery_date: String(deliveryDate || ''),
-              delivery_count: { $ifNull: ['$warehousing_count', 0] },
-              updatedAt: now,
-            },
-          },
-        ],
+        // 입고수량을 출고수량으로 복사하고, 주문수량을 다 채웠을 때만 '출고'로
+        // 넘긴다. 덜 들어온 건 '입고'에 머문다. (drawer 의 체크 버튼과 같은 규칙)
+        update: [shippingSetStage(deliveryDate, now)],
       },
     }));
   if (!ops.length) return 0;
@@ -74,9 +110,19 @@ export async function bulkSetPurchase(keys, orderDate, supplier) {
     .map((k) => ({
       updateOne: {
         filter: { orderNo: Number(k.orderNo), no: Number(k.no) },
-        update: {
-          $set: { order_date: String(orderDate || ''), supplier: String(supplier || ''), updatedAt: now },
-        },
+        update: [
+          {
+            $set: {
+              order_date: String(orderDate || ''),
+              supplier: String(supplier || ''),
+              // 견적요청만 '발주' 로 올린다. 이미 발주/입고/출고 인 건 그대로 둔다.
+              status: {
+                $cond: [{ $eq: ['$status', '견적요청'] }, '발주', '$status'],
+              },
+              updatedAt: now,
+            },
+          },
+        ],
       },
     }));
   if (!ops.length) return 0;

@@ -33,6 +33,7 @@ function normalizeOrder(body = {}) {
     branch: str(body.branch, 120),       // 지점명
     ordername: str(body.ordername, 200),  // 주문명
     order_price: Number.isFinite(priceNum) ? priceNum : 0, // 주문금액
+    quote_date: str(body.quote_date, 20), // 견적요청일자 (YYYY-MM-DD)
     order_date: str(body.order_date, 20), // 주문일자 (YYYY-MM-DD)
     delivery_date: str(body.delivery_date, 20), // 출고일자
     status,

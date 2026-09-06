@@ -1,6 +1,8 @@
 import {
   bulkSetPurchase,
   bulkSetShipping,
+  bulkSetShippingByOrderNo,
+  bulkSetStatusByOrderNo,
   bulkSetWarehousing,
   replaceOrderListByOrderNo,
   deleteByKey,
@@ -48,6 +50,7 @@ function normalizeFields(body = {}) {
     author: str(body.author, 120),          // 저자
     qty: num(body.qty),                     // 수량
     warehousing_count: num(body.warehousing_count), // 입고수량
+    delivery_count: num(body.delivery_count),       // 출고수량
     price: num(body.price),                 // 정가
     dc_price: num(body.dc_price),           // 할인가
     status,                                 // 견적요청/주문/발주/입고/출고
@@ -105,12 +108,32 @@ export async function saveOrderListBulk({ orderNo, items } = {}) {
 }
 
 // 출고: 선택한 도서들에 status='출고', 출고일자, 입고수량→출고수량 저장.
-export async function saveShipping({ keys, delivery_date } = {}) {
+// keys 를 주면 선택한 도서만, orderNo 를 주면 그 주문의 도서 전체를 출고 처리한다.
+export async function saveShipping({ keys, orderNo, delivery_date } = {}) {
+  const on = Number(orderNo);
+  if (Number.isFinite(on) && on > 0) {
+    const modified = await bulkSetShippingByOrderNo(on, delivery_date);
+    return { ok: true, modified };
+  }
+
   const list = Array.isArray(keys) ? keys : [];
   if (!list.length) {
     throw appError('출고할 도서를 선택하세요.', 400);
   }
   const modified = await bulkSetShipping(list, delivery_date);
+  return { ok: true, modified };
+}
+
+// 주문 화면의 '주문' / '발주' 버튼. 그 주문의 도서 전체 상태를 한 번에 바꾼다.
+export async function setOrderListStatus({ orderNo, status, supplier } = {}) {
+  const on = Number(orderNo);
+  if (!Number.isFinite(on) || on <= 0) {
+    throw appError('주문번호(orderNo)가 필요합니다.', 400);
+  }
+  if (!STATUSES.includes(status)) {
+    throw appError(`상태는 ${STATUSES.join(' / ')} 중 하나여야 합니다.`, 400);
+  }
+  const modified = await bulkSetStatusByOrderNo(on, status, supplier);
   return { ok: true, modified };
 }
 

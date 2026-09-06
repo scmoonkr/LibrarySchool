@@ -8,6 +8,7 @@ import {
   savePurchaseItems,
   saveShippingItems,
   saveWarehousingItems,
+  setStatusItems,
   updateItem,
 } from './orderlist.controller.js';
 
@@ -21,6 +22,7 @@ router.post('/', createItem);
 router.post('/renumber', renumberItems);
 router.post('/warehousing', saveWarehousingItems);
 router.post('/purchase', savePurchaseItems);
+router.post('/set-status', setStatusItems);
 router.post('/shipping', saveShippingItems);
 router.post('/bulk', saveBulkItems);
 router.put('/:orderNo/:no', updateItem);

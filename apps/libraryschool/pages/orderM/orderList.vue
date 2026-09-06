@@ -29,7 +29,13 @@
                 @search="applyOrderNo"
               />
               <button type="button" class="theme-form-submit theme-form-submit-secondary-soft ol-filter-btn" @click="applyOrderNo">조회</button>
-              <input v-model="keyword" type="search" name="keyword" placeholder="서명 · ISBN · 출판사 · 발주처 검색" />
+              <select v-model="statusFilter" name="statusFilter">
+                <option value="">전체 상태</option>
+                <option v-for="s in STATUSES" :key="s" :value="s">{{ s }}</option>
+              </select>
+              <span v-if="contextOrderNo" class="ol-filter-sum" title="주문수량 / 입고수량 / 출고수량">
+                ({{ totals.qty }} / {{ totals.warehousing }} / {{ totals.delivery }})
+              </span>
             </div>
           </div>
           <div class="theme-backend-head-right">
@@ -62,11 +68,11 @@
                 <th>ISBN</th>
                 <th>서명</th>
                 <th>출판사</th>
-                <th class="col-num">수량(주문/입고)</th>
+                <th class="col-num">주문/입고/출고</th>
                 <th class="col-num">정가</th>
                 <th>상태</th>
-                <th>발주처</th>
-                <th>입고일</th>
+                <th>발주처/발주일</th>
+                <th>입고일/출고일</th>
               </tr>
             </thead>
             <tbody>
@@ -81,7 +87,7 @@
                   <div v-if="item.subtitle" class="ol-subtitle">{{ item.subtitle }}</div>
                 </td>
                 <td>{{ item.publisher || '-' }}</td>
-                <td class="col-num mono">{{ item.qty ?? 0 }} / {{ item.warehousing_count ?? 0 }}</td>
+                <td class="col-num mono">{{ item.qty ?? 0 }} / {{ item.warehousing_count ?? 0 }} / {{ item.delivery_count ?? 0 }}</td>
                 <td class="col-num mono">{{ formatPrice(item.price) }}</td>
                 <td><span :class="['book-status', statusClass(item.status)]">{{ item.status }}</span></td>
                 <td>
@@ -166,18 +172,33 @@
               <input v-model="form.publisher" name="publisher" maxlength="120" />
             </label>
 
-            <!-- 발주처 / 수량 / 입고수량 (1/3, 1/3, 1/3) -->
-            <label class="theme-form-field c2">
+            <!-- 발주처 / 수량 / 입고수량 / 출고수량 (각 1/4) -->
+            <label class="theme-form-field c-quarter">
               <span>발주처</span>
               <input v-model="form.supplier" name="supplier" maxlength="120" />
             </label>
-            <label class="theme-form-field c2">
+            <label class="theme-form-field c-quarter">
               <span>수량</span>
               <input v-model.number="form.qty" name="qty" type="number" min="0" />
             </label>
-            <label class="theme-form-field c2">
+            <label class="theme-form-field c-quarter">
               <span>입고수량</span>
               <input v-model.number="form.warehousing_count" name="warehousing_count" type="number" min="0" />
+            </label>
+            <label class="theme-form-field c-quarter">
+              <span>출고수량</span>
+              <div class="book-pick ol-ship-count">
+                <input v-model.number="form.delivery_count" name="delivery_count" type="number" min="0" />
+                <button
+                  type="button"
+                  class="book-pick-btn ol-ship-btn"
+                  title="출고 처리 — 주문수량과 같으면 '출고', 적으면 '입고' 로 상태를 바꿉니다"
+                  aria-label="출고 처리"
+                  @click="applyShipStatus"
+                >
+                  <i class="fa-solid fa-check"></i>
+                </button>
+              </div>
             </label>
 
             <!-- 정가 / 할인가 / 매입가격 (1/3, 1/3, 1/3) -->
@@ -272,7 +293,7 @@
             <span>출고일자</span>
             <input v-model="shipDate" type="date" />
           </label>
-          <p class="ol-ship-hint">선택한 도서의 상태를 '출고'로 바꾸고, 입고수량을 출고수량으로 저장합니다.</p>
+          <p class="ol-ship-hint">입고수량을 출고수량으로 저장합니다. 주문수량을 다 채운 도서는 '출고', 덜 들어온 도서는 '입고' 상태가 됩니다.</p>
         </div>
         <div class="ol-purchase-actions">
           <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="isShipOpen = false">취소</button>
@@ -352,6 +373,7 @@ type OrderListItem = {
   author: string
   qty: number
   warehousing_count: number
+  delivery_count: number
   price: number
   dc_price: number
   status: BookStatus
@@ -380,7 +402,7 @@ function applyOrderNo() {
   ordernoFilter.value = ordernoFilter.value.replace(/[^0-9]/g, '')
   appliedOrderNo.value = ordernoFilter.value
 }
-const keyword = ref('')
+const statusFilter = ref<'' | BookStatus>('')
 const headerSearch = ref('')
 
 // 현재 주문 컨텍스트. 신규 도서는 이 주문번호에 속한다(drawer 에는 표시만).
@@ -508,12 +530,20 @@ const { data, pending, refresh } = await useAsyncData(
 const items = computed<OrderListItem[]>(() => data.value?.data ?? [])
 
 const filtered = computed(() => {
-  const q = keyword.value.trim().toLowerCase()
-  if (!q) return items.value
-  return items.value.filter((it) => (
-    `${it.title} ${it.isbn} ${it.publisher} ${it.supplier}`.toLowerCase().includes(q)
-  ))
+  const st = statusFilter.value
+  if (!st) return items.value
+  return items.value.filter((it) => it.status === st)
 })
+
+// 필터 줄에 표기하는 수량 합계. 목록에 보이는 것(=상태 필터 적용 후) 기준이다.
+const totals = computed(() => filtered.value.reduce(
+  (acc, it) => ({
+    qty: acc.qty + (Number(it.qty) || 0),
+    warehousing: acc.warehousing + (Number(it.warehousing_count) || 0),
+    delivery: acc.delivery + (Number(it.delivery_count) || 0),
+  }),
+  { qty: 0, warehousing: 0, delivery: 0 },
+))
 
 const STATUS_CLASS: Record<BookStatus, string> = {
   견적요청: 'is-quote',
@@ -541,7 +571,7 @@ type FormShape = Omit<OrderListItem, 'no' | 'createdAt' | 'updatedAt'>
 function blankForm(): FormShape {
   return {
     orderNo: 0, isbn: '', title: '', subtitle: '', publisher: '', author: '',
-    qty: 1, warehousing_count: 0, price: 0, dc_price: 0,
+    qty: 1, warehousing_count: 0, delivery_count: 0, price: 0, dc_price: 0,
     status: '견적요청', supplier: '', order_price: 0,
     order_date: '', warehousing_date: '', delivery_date: '', note: '',
   }
@@ -551,7 +581,8 @@ const form = reactive<FormShape>(blankForm())
 function resetForm(src?: OrderListItem) {
   Object.assign(form, blankForm(), src ? {
     orderNo: src.orderNo, isbn: src.isbn, title: src.title, subtitle: src.subtitle, publisher: src.publisher, author: src.author,
-    qty: src.qty, warehousing_count: src.warehousing_count, price: src.price, dc_price: src.dc_price,
+    qty: src.qty, warehousing_count: src.warehousing_count, delivery_count: src.delivery_count ?? 0,
+    price: src.price, dc_price: src.dc_price,
     status: src.status, supplier: src.supplier, order_price: src.order_price,
     order_date: src.order_date, warehousing_date: src.warehousing_date, delivery_date: src.delivery_date, note: src.note,
   } : {})
@@ -568,6 +599,13 @@ function clearForm() {
   message.value = ''
   isError.value = false
   isbnError.value = ''
+}
+
+// 출고수량 옆 체크. 주문수량과 같으면(또는 넘으면) '출고', 적으면 '입고'.
+function applyShipStatus() {
+  const ordered = Number(form.qty) || 0
+  const shipped = Number(form.delivery_count) || 0
+  form.status = shipped >= ordered ? '출고' : '입고'
 }
 
 function openCreate() {
@@ -784,13 +822,23 @@ async function remove() {
 .theme-backend-contents-filters input[name='ordernoFilter'] {
   width: 120px;
 }
-.theme-backend-contents-filters input[name='keyword'] {
-  width: 280px;
-  max-width: 40vw;
+/* 상태 select 는 전역 .theme-backend-contents-filters select 스타일을 쓰되,
+   주문번호 입력과 높이·모서리를 맞춘다. */
+.theme-backend-contents-filters select {
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 13px;
 }
 /* 조회 버튼. .theme-form-submit 기본값(150px/46px)은 필터 줄에 너무 커서 낮춘다. */
 .theme-backend-head-right .theme-form-submit {
   min-width: 100px;
+}
+.ol-filter-sum {
+  font-family: var(--theme-mono, monospace);
+  font-size: 13px;
+  color: var(--theme-fg-dim);
+  white-space: nowrap;
+  align-self: center;
 }
 .ol-filter-btn {
   min-width: 100px;
@@ -920,19 +968,42 @@ async function remove() {
 /* 6열 그리드: 1/3=span2, 1/2=span3, 2/3=span4 */
 .ol-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  /* 1/4 폭을 쓰려고 12칸으로 잡는다. c2/c3/c4 는 6칸 시절과 같은 비율을 유지한다. */
+  grid-template-columns: repeat(12, 1fr);
   gap: 12px 14px;
 }
-.ol-grid .c2 { grid-column: span 2; }
-.ol-grid .c3 { grid-column: span 3; }
-.ol-grid .c4 { grid-column: span 4; }
+.ol-grid .c2 { grid-column: span 4; }  /* 1/3 */
+.ol-grid .c3 { grid-column: span 6; }  /* 1/2 */
+.ol-grid .c4 { grid-column: span 8; }  /* 2/3 */
+.ol-grid .c-quarter { grid-column: span 3; }
 .ol-grid .theme-form-field { min-width: 0; }
+
+/* 체크 버튼이 number 입력의 스피너와 겹치므로 이 칸에서만 스피너를 숨긴다. */
+.ol-ship-count input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.ol-ship-count input::-webkit-outer-spin-button,
+.ol-ship-count input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* 출고 처리 체크 — 눌러야 하는 버튼이라 검색 아이콘보다 진하게 둔다. */
+.ol-ship-btn {
+  color: var(--theme-fg-dim);
+}
+.ol-ship-btn:hover {
+  background: var(--theme-bg-sunken);
+  color: var(--theme-fg);
+}
 
 @media (max-width: 640px) {
   .ol-grid { grid-template-columns: 1fr; }
   .ol-grid .c2,
   .ol-grid .c3,
-  .ol-grid .c4 { grid-column: auto; }
+  .ol-grid .c4,
+  .ol-grid .c-quarter { grid-column: auto; }
 }
 .ol-actions {
   display: flex;

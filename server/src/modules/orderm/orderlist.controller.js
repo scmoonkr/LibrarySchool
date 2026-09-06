@@ -8,6 +8,7 @@ import {
   savePurchase,
   saveShipping,
   saveWarehousing,
+  setOrderListStatus,
 } from './orderlist.service.js';
 
 export async function listItems(req, res, next) {
@@ -31,6 +32,15 @@ export async function saveBulkItems(req, res, next) {
 export async function saveShippingItems(req, res, next) {
   try {
     const result = await saveShipping(req.body || {});
+    return res.json({ ok: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function setStatusItems(req, res, next) {
+  try {
+    const result = await setOrderListStatus(req.body || {});
     return res.json({ ok: true, data: result });
   } catch (error) {
     return next(error);
