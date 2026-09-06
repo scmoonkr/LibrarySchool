@@ -594,6 +594,37 @@ showExcerpt: on
   },
 
   // ───────────────────────────────────────────────────────────────────────────
+  // Board — postList 와 같은 데이터(/api/public/post-cards)를 표로 보여 준다.
+  // 열: # · featured · 제목 · 작성자 · 카테고리 · 태그 · 발행일
+  // ───────────────────────────────────────────────────────────────────────────
+  board: {
+    label: 'Board (post table)',
+    block: {
+      type: 'board',
+      props: {
+        categories: '',
+        tags: '',
+        limit: 10,
+        showFeatured: 'on',
+        showAuthor: 'on',
+        showCategories: 'on',
+        showTags: 'on',
+        showDate: 'on',
+      },
+    },
+    markdown: `:::board
+categories:
+tags:
+limit: 10
+showFeatured: on
+showAuthor: on
+showCategories: on
+showTags: on
+showDate: on
+:::`,
+  },
+
+  // ───────────────────────────────────────────────────────────────────────────
   // Tabs — clickable tab bar with 2-column panel (left title, right body)
   // ───────────────────────────────────────────────────────────────────────────
   tabs: {

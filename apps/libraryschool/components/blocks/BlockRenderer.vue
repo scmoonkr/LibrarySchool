@@ -36,6 +36,7 @@ import IconListBlock from './IconListBlock.vue'
 import MediaTextBlock from './MediaTextBlock.vue'
 import TabsBlock from './TabsBlock.vue'
 import PostListBlock from './PostListBlock.vue'
+import BoardBlock from './BoardBlock.vue'
 import ImageBlock from './ImageBlock.vue'
 import BlockAccessGuard from './BlockAccessGuard.vue'
 import InsuranceCalculatorBlock from './insurance/InsuranceCalculatorBlock.vue'
@@ -77,6 +78,7 @@ const registry: Record<string, Component> = {
   mediaText: MediaTextBlock,
   tabs: TabsBlock,
   postList: PostListBlock,
+  board: BoardBlock,
   image: ImageBlock,
   // ── insure 전용 ──
   insuranceCalculator: InsuranceCalculatorBlock,

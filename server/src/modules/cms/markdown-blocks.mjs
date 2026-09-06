@@ -16,8 +16,11 @@ const FENCE_OPEN_RE = /^:::([a-zA-Z][a-zA-Z0-9-]*)\s*$/
 const FENCE_CLOSE_RE = /^:::\s*$/
 const CODE_FENCE_RE = /^(`{3,}|~{3,})/
 // Option lines require whitespace AFTER the colon so URLs like `https://...`
-// are not mistakenly parsed as `key: value` pairs.
-const OPTION_LINE_RE = /^([a-zA-Z][a-zA-Z0-9_]*)\s*:\s+(.*)$/
+// are not mistakenly parsed as `key: value` pairs. A bare `key:` (nothing after
+// the colon) is also an option with an empty value — without this, one empty
+// option line would end option parsing and dump every following option into
+// the content body.
+const OPTION_LINE_RE = /^([a-zA-Z][a-zA-Z0-9_]*)\s*:(?:\s+(.*))?$/
 
 export function parseMarkdownBlocks(markdown) {
   const lines = String(markdown || '').split(/\r?\n/)
@@ -172,7 +175,7 @@ function parseBlockBody(lines) {
     const m = line.match(OPTION_LINE_RE)
     if (!m) break
     const key = m[1]
-    let value = m[2].trim()
+    let value = (m[2] || '').trim()
     let next = i + 1
 
     // Multi-line JSON value support: if value starts with [ or {, keep

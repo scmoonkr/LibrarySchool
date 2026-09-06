@@ -15,6 +15,7 @@ export const INITIAL_BLOCK_NAMES = [
   'mediaText',
   'tabs',
   'postList',
+  'board',
   'image',
   // ── site-specific custom blocks ──
   'insuranceCalculator',
@@ -194,6 +195,21 @@ export const BLOCK_TYPES = {
       showAuthor: { type: 'enum', values: ['on', 'off'], default: 'on' },
       showDate: { type: 'enum', values: ['on', 'off'], default: 'on' },
       showExcerpt: { type: 'enum', values: ['on', 'off'], default: 'on' },
+    },
+  },
+  board: {
+    label: 'Board (post table)',
+    requiresContent: false,
+    options: {
+      // postList 와 같은 필터. 쉼표로 구분한 슬러그, 비우면 해당 축은 필터 없음.
+      categories: { type: 'string' },
+      tags: { type: 'string' },
+      limit: { type: 'number', default: 10, min: 1, max: 24 },
+      showFeatured: { type: 'enum', values: ['on', 'off'], default: 'on' },
+      showAuthor: { type: 'enum', values: ['on', 'off'], default: 'on' },
+      showCategories: { type: 'enum', values: ['on', 'off'], default: 'on' },
+      showTags: { type: 'enum', values: ['on', 'off'], default: 'on' },
+      showDate: { type: 'enum', values: ['on', 'off'], default: 'on' },
     },
   },
   tabs: {

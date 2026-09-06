@@ -2307,6 +2307,112 @@
   .block-postlist { grid-template-columns: 1fr !important; }
 }
 
+/* board — postList 와 같은 데이터를 표로 (#, featured, 제목, 작성자, 카테고리, 태그, 발행일) */
+.block-board {
+  margin: 24px 0;
+  overflow-x: auto;
+}
+.block-board-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.block-board-table th,
+.block-board-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--theme-line);
+  text-align: left;
+  vertical-align: middle;
+}
+.block-board-table thead th {
+  border-bottom: 1px solid var(--theme-fg-dim);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-fg-dim);
+  white-space: nowrap;
+}
+.block-board-row-featured {
+  background: var(--theme-bg-soft);
+}
+.block-board-col-num {
+  width: 48px;
+  text-align: right;
+  color: var(--theme-fg-faint);
+  white-space: nowrap;
+}
+.block-board-col-featured {
+  width: 44px;
+  text-align: center;
+}
+.block-board-star {
+  color: var(--theme-accent, var(--theme-fg-dim));
+}
+.block-board-col-author,
+.block-board-col-date {
+  width: 110px;
+  white-space: nowrap;
+  color: var(--theme-fg-dim);
+  font-size: 13px;
+}
+.block-board-col-terms {
+  width: 150px;
+}
+.block-board-title a {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+}
+.block-board-title a:hover {
+  color: var(--theme-accent, var(--theme-fg-dim));
+}
+.block-board-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.block-board-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.block-board-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.block-board-term {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--theme-bg-sunken);
+  color: var(--theme-fg-dim);
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.block-board-term:hover {
+  color: var(--theme-fg);
+}
+.block-board-empty,
+.block-board-loading {
+  padding: 24px;
+  margin: 0;
+  text-align: center;
+  color: var(--theme-fg-dim);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .block-board-col-author,
+  .block-board-col-terms {
+    display: none;
+  }
+}
+
 /* tabs — clickable tab bar + 2-column panel (left title, right body) */
 .block-tabs {
   margin: 24px 0;

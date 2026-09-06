@@ -1344,19 +1344,22 @@ async function handlePublicPostCards(req, res, url) {
     .find(filter, {
       projection: {
         title: 1, slug: 1, summary: 1, publishedAt: 1, thumbnailImageId: 1,
-        authorId: 1, meta: 1,
+        authorId: 1, meta: 1, categoryIds: 1, tagIds: 1,
       },
     })
     .sort({ publishedAt: -1 })
     .limit(limit)
     .toArray()
 
-  // Enrich: thumbnails + authors in one batch each.
+  // Enrich: thumbnails + authors + category/tag labels, one batch each.
   const thumbIds = posts.map(p => p.thumbnailImageId).filter(Boolean)
   const authorIds = [...new Set(posts.map(p => p.authorId).filter(Boolean).map(id => String(id)))]
     .map(id => new ObjectId(id))
+  // 카테고리/태그 이름은 `board` 블록이 표 열로 쓴다. postList(카드)는 무시한다.
+  const catIds = [...new Set(posts.flatMap(p => (p.categoryIds || []).map(String)))]
+  const postTagIds = [...new Set(posts.flatMap(p => (p.tagIds || []).map(String)))]
 
-  const [mediaDocs, authorDocs] = await Promise.all([
+  const [mediaDocs, authorDocs, catLabels, tagLabels] = await Promise.all([
     thumbIds.length
       ? db.collection('media').find(
           { _id: { $in: thumbIds } },
@@ -1369,7 +1372,14 @@ async function handlePublicPostCards(req, res, url) {
           { projection: { name: 1, nickname: 1, avatarUrl: 1 } },
         ).toArray()
       : [],
+    catIds.length ? getCategoriesByIds(catIds) : [],
+    postTagIds.length ? getTagsByIds(postTagIds) : [],
   ])
+
+  const catById = {}
+  for (const c of catLabels) catById[c.id] = { name: c.name, slug: c.slug }
+  const tagById = {}
+  for (const t of tagLabels) tagById[t.id] = { name: t.name, slug: t.slug }
 
   const { apiBase } = getConfig()
   const mediaById = {}
@@ -1395,6 +1405,8 @@ async function handlePublicPostCards(req, res, url) {
     featured: !!(p.meta?.featured),
     thumbnailUrl: p.thumbnailImageId ? (mediaById[String(p.thumbnailImageId)] || '') : '',
     author: p.authorId ? (authorById[String(p.authorId)] || null) : null,
+    categories: (p.categoryIds || []).map(id => catById[String(id)]).filter(Boolean),
+    tags: (p.tagIds || []).map(id => tagById[String(id)]).filter(Boolean),
   }))
 
   sendJson(req, res, 200, { items })

@@ -503,6 +503,7 @@ const BLOCK_OPTIONS = [
   { value: 'mediaText', label: 'Media + Text (alternating)' },
   { value: 'tabs', label: 'Tabs' },
   { value: 'postList', label: 'Post List (categories / tags)' },
+  { value: 'board', label: 'Board (post table)' },
 ]
 
 // 사이트 전용 커스텀 블록 — 일반 블록과 별도 UI 섹션에 표시

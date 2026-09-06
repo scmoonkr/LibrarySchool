@@ -56,6 +56,7 @@ function renderNode(n) {
     case 'mediaText': return renderMediaText(n.props)
     case 'tabs':      return renderTabs(n.props)
     case 'postList':  return renderPostList(n.props)
+    case 'board':     return renderBoard(n.props)
     case 'image':     return renderImage(n.props)
     default:
       return `<div class="block-placeholder" data-block-type="${esc(n.type)}">` +
@@ -261,6 +262,16 @@ function renderImage(props) {
     : imgHtml
 
   return `<figure class="block-image block-image-${width}">${inner}${caption}</figure>`
+}
+
+function renderBoard(props) {
+  // postList 와 같은 이유의 정적 폴백. 실제 표는 클라이언트 BoardBlock 이 그린다.
+  const cats = String(props.categories || '').trim()
+  const tags = String(props.tags || '').trim()
+  const limit = Number(props.limit) > 0 ? Number(props.limit) : 10
+  return `<div class="block-board" ` +
+    `data-categories="${esc(cats)}" data-tags="${esc(tags)}" data-limit="${limit}">` +
+    `<p class="block-board-loading">Loading posts…</p></div>`
 }
 
 function renderPostList(props) {
