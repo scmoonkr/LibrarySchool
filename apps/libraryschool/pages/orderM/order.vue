@@ -152,6 +152,15 @@
           </label>
 
           <p v-if="message" :class="['theme-form-status', { error: isError }]">{{ message }}</p>
+          <p v-if="quoteFiles.length" class="order-quote-links">
+            <a
+              v-for="f in quoteFiles"
+              :key="f.filename"
+              :href="f.urlPath"
+              target="_blank"
+              rel="noopener"
+            >{{ f.label }} 열기</a>
+          </p>
 
           <div class="order-actions">
             <button
@@ -166,23 +175,9 @@
                 v-if="!isNew"
                 type="button"
                 class="theme-form-submit theme-form-submit-secondary-soft"
-                :disabled="bulkBusy"
-                @click="applyOrdered"
-              >주문</button>
-              <button
-                v-if="!isNew"
-                type="button"
-                class="theme-form-submit theme-form-submit-secondary-soft"
-                :disabled="bulkBusy"
-                @click="applyPurchased"
-              >발주</button>
-              <button
-                v-if="!isNew"
-                type="button"
-                class="theme-form-submit theme-form-submit-secondary-soft"
-                :disabled="bulkBusy"
-                @click="applyShipped"
-              >출고</button>
+                :disabled="quoting"
+                @click="makeQuotePdf"
+              >{{ quoting ? '생성 중...' : '견적서' }}</button>
               <button v-if="!isNew" type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="openProgress">처리현황</button>
               <button v-if="!isNew" type="button" class="theme-form-submit theme-form-submit-secondary" @click="goToOrderList">주문도서</button>
               <button type="submit" class="theme-form-submit" :disabled="isSaving">{{ isSaving ? '저장 중...' : '저장' }}</button>
@@ -345,6 +340,7 @@ const form = reactive<Omit<Order, 'orderno' | 'createdAt' | 'updatedAt'>>({
 })
 
 function resetForm(src?: Order) {
+  quoteFiles.value = []
   form.customer = src?.customer ?? ''
   form.branch = src?.branch ?? ''
   form.ordername = src?.ordername ?? ''
@@ -403,9 +399,8 @@ function applyStatus(status: OrderStatus) {
   )
 }
 
-// ── 주문도서 일괄 처리 (주문 / 발주 / 출고) ─────────────────
-// 이 주문에 속한 order_list 전체가 대상이다. 되돌리기 어려우니 한 번 확인받는다.
-const PURCHASE_SUPPLIER = '교보도매'
+// ── 상태 일괄 변경 ───────────────────────────────────────────
+// 헤더 상태 스텝이 쓴다. 주문과 그 주문도서 전체가 대상이라 한 번 확인받는다.
 const bulkBusy = ref(false)
 
 // orderStatus 를 주면 주문도서뿐 아니라 주문(orders) 자체의 상태도 같이 바꾼다.
@@ -442,44 +437,34 @@ async function runBulk(
   }
 }
 
-// 주문 자체와 주문도서 전체 상태를 '주문' 으로.
-function applyOrdered() {
-  return runBulk(
-    '주문으로',
-    `주문 #${editingNo.value} 와 그 도서 전체의 상태를 '주문' 으로 바꿀까요?`,
-    (orderNo) => $fetch(`${apiBase}/api/orderm/order-list/set-status`, {
-      method: 'POST',
-      credentials: 'include',
-      body: { orderNo, status: '주문' },
-    }),
-    '주문',
-  )
-}
+// 견적서 + 비교견적서 PDF. 서버가 주문 + 주문도서로 만들어 uploads 에 떨어뜨린다.
+// 새 탭 자동 열기는 팝업 차단에 걸릴 수 있어, 링크를 drawer 에 남겨 두고 고르게 한다.
+type QuoteFile = { label: string; filename: string; urlPath: string }
+const quoting = ref(false)
+const quoteFiles = ref<QuoteFile[]>([])
 
-// 주문 상태를 '발주' 로, 주문도서 전체를 발주처 '교보도매' + 상태 '발주' 로.
-function applyPurchased() {
-  return runBulk(
-    '발주로',
-    `주문 #${editingNo.value} 의 상태와 그 도서 전체를 발주처 '${PURCHASE_SUPPLIER}', 상태 '발주' 로 바꿀까요?`,
-    (orderNo) => $fetch(`${apiBase}/api/orderm/order-list/set-status`, {
-      method: 'POST',
-      credentials: 'include',
-      body: { orderNo, status: '발주', supplier: PURCHASE_SUPPLIER },
-    }),
-    '발주',
-  )
-}
+async function makeQuotePdf() {
+  if (editingNo.value == null || quoting.value) return
+  quoting.value = true
+  message.value = ''
+  isError.value = false
+  quoteFiles.value = []
+  try {
+    const res = await $fetch<{
+      ok: boolean
+      data: { quote: QuoteFile; compare: QuoteFile; count: number; total: number; compareTotal: number }
+    }>(`${API}/${editingNo.value}/quote-pdf`, { method: 'POST', credentials: 'include' })
 
-// 주문도서 전체를 출고 처리. 입고수량을 출고수량으로 옮기고, 주문수량을 다 채운
-// 도서만 '출고', 덜 들어온 도서는 '입고' 가 된다. (주문도서 화면의 출고와 같은 규칙)
-function applyShipped() {
-  const date = form.delivery_date || todayStr()
-  return runBulk('출고', `주문 #${editingNo.value} 의 모든 도서를 출고 처리할까요? (출고일자 ${date})`, (orderNo) =>
-    $fetch(`${apiBase}/api/orderm/order-list/shipping`, {
-      method: 'POST',
-      credentials: 'include',
-      body: { orderNo, delivery_date: date },
-    }))
+    const d = res.data
+    if (!d?.quote?.urlPath) throw new Error('no url')
+    quoteFiles.value = [d.quote, d.compare].filter(Boolean)
+    message.value = `${d.count}종 · 견적 ${d.total.toLocaleString('ko-KR')}원 / 비교 ${d.compareTotal.toLocaleString('ko-KR')}원`
+  } catch (err: any) {
+    isError.value = true
+    message.value = err?.data?.message || '견적서 생성에 실패했습니다.'
+  } finally {
+    quoting.value = false
+  }
 }
 
 // ── 처리현황 ─────────────────────────────────────────────────
@@ -619,6 +604,17 @@ async function remove() {
 .order-field-wide {
   grid-column: 1 / -1;
 }
+.order-quote-links {
+  display: flex;
+  gap: 14px;
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+.order-quote-links a {
+  color: var(--theme-fg);
+  font-weight: 600;
+}
+
 .order-actions {
   display: flex;
   align-items: center;

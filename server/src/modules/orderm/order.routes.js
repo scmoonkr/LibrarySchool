@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   createOrderItem,
   deleteOrderItem,
+  generateQuote,
   listOrderItems,
   updateOrderItem,
 } from './order.controller.js';
@@ -13,6 +14,7 @@ const router = Router();
 
 router.get('/', listOrderItems);
 router.post('/', createOrderItem);
+router.post('/:orderno/quote-pdf', generateQuote);
 router.put('/:orderno', updateOrderItem);
 router.delete('/:orderno', deleteOrderItem);
 
