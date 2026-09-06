@@ -143,16 +143,23 @@ type PublicResponse = {
 
 definePageMeta({
   layout: 'content',
+  // 홈('/')도 이 페이지가 받는다. 그때는 params 가 비어 있어서 아래에서
+  // page/{homePageSlug} 로 폴백한다.
+  alias: ['/'],
   validate(route) {
+    // '/' 로 들어온 경우 params 가 없다. 홈이므로 통과시킨다.
+    if (!route.params.contentType) return true
     return ['post', 'page', 'notice', 'gallery'].includes(String(route.params.contentType))
   },
 })
 
 const route = useRoute()
 const apiBase = useApiBase()
+const runtime = useRuntimeConfig()
 
-const contentType = computed(() => String(route.params.contentType || ''))
-const slug = computed(() => String(route.params.slug || ''))
+// '/' 로 들어오면 params 가 없다. 이때는 홈으로 지정한 CMS 페이지를 보여 준다.
+const contentType = computed(() => String(route.params.contentType || 'page'))
+const slug = computed(() => String(route.params.slug || runtime.public.homePageSlug || ''))
 const isPage = computed(() => contentType.value === 'page')
 
 // ── Template layout (basic·narrow·wide·sidebar·backend) ──────────────────────

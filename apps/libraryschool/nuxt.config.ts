@@ -18,6 +18,9 @@ export default defineNuxtConfig({
       // CMS 콘텐츠 페이지의 사이트명/설명 폴백. DB(site-config)에 값이 있으면 그쪽이 우선.
       siteName: process.env.SITE_NAME || '',
       siteDescription: process.env.SITE_DESCRIPTION || '',
+      // 홈('/')에서 보여줄 CMS 페이지의 슬러그. pages/[contentType]/[slug].vue 가
+      // '/' 를 alias 로 받아 이 슬러그의 page 콘텐츠를 렌더한다.
+      homePageSlug: process.env.HOME_PAGE_SLUG || '도서관학교',
     },
   },
   vite: {
