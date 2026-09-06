@@ -199,6 +199,8 @@
                   </div>
 
                   <div class="menus-item-actions">
+                    <button type="button" :disabled="i === 0" @click="moveUp(i)">↑ 위로</button>
+                    <button type="button" :disabled="i === form.items.length - 1" @click="moveDown(i)">아래로 ↓</button>
                     <button type="button" :disabled="!canIndent(i)" @click="indent(i)">→ 하위로</button>
                     <button type="button" :disabled="!canOutdent(i)" @click="outdent(i)">← 상위로</button>
                     <button type="button" class="warning" @click="removeItem(i)">삭제</button>
@@ -449,6 +451,18 @@ function addCustomLink() {
 
 function toggleExpand(id: string) {
   expandedItemId.value = expandedItemId.value === id ? '' : id
+}
+
+function moveUp(i: number) {
+  if (i <= 0) return
+  const [item] = form.items.splice(i, 1)
+  form.items.splice(i - 1, 0, item)
+}
+
+function moveDown(i: number) {
+  if (i >= form.items.length - 1) return
+  const [item] = form.items.splice(i, 1)
+  form.items.splice(i + 1, 0, item)
 }
 
 // Indent: top-level → child of the most recent preceding top-level item.
