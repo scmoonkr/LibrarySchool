@@ -9,9 +9,15 @@ export type SiteMenu = {
 
 export function useSiteMenus() {
   const mainMenus: SiteMenu[] = [
-    { label: '말씀으로', to: '/read' },
-    { label: '말씀 더보기', to: '',
+    { label: '도서관학교', to: '',
       children: [
+        // { label: '도서관학교', to: '/page/도서관학교' },
+        { label: '도서관학교', to: '/page/도서관학교는' },
+      ]
+     },
+    { label: '말씀으로', to: '',
+      children: [
+        { label: '말씀으로', to: '/read' },
         { label: '말씀 펼쳐보기', to: '/bible' },
         { label: '주제별 보기', to: '/topics' },
         { label: '돌아보기', to: '/review' },
