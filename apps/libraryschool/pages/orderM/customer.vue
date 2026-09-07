@@ -246,7 +246,12 @@ function addressLabel(c: Customer) {
   return c.zipcode ? `(${c.zipcode}) ${c.address}` : c.address
 }
 function fileHref(url: string) {
-  return url.startsWith('http') ? url : `${apiBase}${url}`
+  if (!url) return ''
+  if (/^https?:\/\//.test(url)) return url
+  // DB 엔 'orderm/<파일명>' 상대경로로 저장. 서빙은 API(/api/file/<상대경로>)로 한다.
+  // 구버전('/uploads/orderm/...')은 접두사를 떼어 같은 엔드포인트로 보낸다.
+  const rel = url.replace(/^\/?uploads\//, '').replace(/^\/+/, '')
+  return `${apiBase}/api/file/${rel}`
 }
 
 // ── 모달/폼 상태 ──────────────────────────────────────────────

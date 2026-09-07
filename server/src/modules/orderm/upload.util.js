@@ -103,7 +103,7 @@ export async function saveUploadedFile(req) {
     throw appError('이미지(JPG/PNG/GIF/WEBP) 또는 PDF 파일만 업로드할 수 있습니다.', 415);
   }
 
-  const { uploadDir, apiBase } = getConfig();
+  const { uploadDir } = getConfig();
   const dir = path.resolve(uploadDir, 'orderm');
   await mkdir(dir, { recursive: true });
 
@@ -111,9 +111,11 @@ export async function saveUploadedFile(req) {
   const filename = `${uid}${ext}`;
   await writeFile(path.resolve(dir, filename), part.data);
 
-  const urlPath = `/uploads/orderm/${filename}`;
+  // DB 에는 uploadDir 기준 상대경로(orderm/<파일명>)만 저장한다.
+  // 실제 서빙 URL('/uploads/orderm/...')은 화면에서 붙인다.
+  const relPath = `orderm/${filename}`;
   return {
-    url: apiBase ? `${apiBase}${urlPath}` : urlPath,
+    url: relPath,
     filename: part.filename,
     mimeType: part.contentType,
     size: part.data.length,

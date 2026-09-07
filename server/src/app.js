@@ -9,6 +9,7 @@ import orderRouter from './modules/orderm/order.routes.js';
 import orderListRouter from './modules/orderm/orderlist.routes.js';
 import bookRouter from './modules/orderm/book.routes.js';
 import dreamerRouter from './modules/orderm/dreamer.routes.js';
+import fileRouter from './modules/orderm/file.routes.js';
 import cmsHandler from './modules/cms/index.mjs';
 import { attachCmsSession } from './modules/cms/session-bridge.js';
 import { getConfig } from './modules/cms/config.mjs';
@@ -61,6 +62,7 @@ app.use('/api/orderm/orders', orderRouter);
 app.use('/api/orderm/order-list', orderListRouter);
 app.use('/api/orderm/books', bookRouter);
 app.use('/api/orderm/dreamer', dreamerRouter);
+app.use('/api/file', fileRouter);
 
 app.use((error, req, res, next) => {
   console.error(error);
