@@ -102,7 +102,7 @@
                   <div v-if="item.order_date" class="ol-subtitle">{{ item.order_date }}</div>
                 </td>
                 <td class="mono">
-                  {{ item.warehousing_date || '-' }}
+                  <span :class="{ 'ol-future-date': isFutureDate(item.warehousing_date) }">{{ item.warehousing_date || '-' }}</span>
                   <div v-if="item.delivery_date" class="ol-subtitle">{{ item.delivery_date }}</div>
                 </td>
               </tr>
@@ -182,7 +182,10 @@
             <!-- 발주처 / 수량 / 입고수량 / 출고수량 (각 1/4) -->
             <label class="theme-form-field c-quarter">
               <span>발주처</span>
-              <input v-model="form.supplier" name="supplier" maxlength="120" />
+              <select v-model="form.supplier" name="supplier">
+                <option value="">선택</option>
+                <option v-for="s in SUPPLIERS" :key="s" :value="s">{{ s }}</option>
+              </select>
             </label>
             <label class="theme-form-field c-quarter">
               <span>수량</span>
@@ -565,6 +568,13 @@ function statusClass(s: BookStatus) {
 function formatPrice(v: number) {
   return (v ?? 0).toLocaleString('ko-KR')
 }
+// 입고일이 오늘 이후면(입고 예정일) true. 값이 없으면 false.
+function isFutureDate(date?: string) {
+  if (!date) return false
+  const today = new Date()
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  return date > todayStr
+}
 // 정가 대비 할인가 할인율(%)
 function discountRate(item: { price?: number; dc_price?: number }) {
   const p = Number(item.price) || 0
@@ -891,6 +901,10 @@ async function remove() {
 }
 /* 할인율이 10%가 아니면 할인가·할인율을 빨갛게 */
 .ol-subtitle.ol-dc-warn {
+  color: var(--theme-error);
+}
+/* 입고일이 오늘 이후면(입고 예정일) 빨갛게 */
+.ol-future-date {
   color: var(--theme-error);
 }
 

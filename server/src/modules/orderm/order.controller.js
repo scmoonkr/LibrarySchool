@@ -4,11 +4,20 @@ import {
   getOrders,
   removeOrder,
 } from './order.service.js';
-import { generateQuotePdf } from './quote.service.js';
+import { generateQuotePdf, generateStatementPdf } from './quote.service.js';
 
 export async function generateQuote(req, res, next) {
   try {
     const result = await generateQuotePdf(req.params.orderno);
+    return res.json({ ok: true, data: result });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function generateStatement(req, res, next) {
+  try {
+    const result = await generateStatementPdf(req.params.orderno);
     return res.json({ ok: true, data: result });
   } catch (error) {
     return next(error);

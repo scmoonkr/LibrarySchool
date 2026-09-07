@@ -163,10 +163,10 @@
             <a
               v-for="f in quoteFiles"
               :key="f.filename"
-              :href="f.urlPath"
+              :href="`${apiBase}${f.urlPath}`"
               target="_blank"
               rel="noopener"
-            >{{ f.label }} 열기</a>
+            >{{ f.label }} 보기</a>
           </p>
 
           <div class="order-actions">
@@ -185,6 +185,13 @@
                 :disabled="quoting"
                 @click="makeQuotePdf"
               >{{ quoting ? '생성 중...' : '견적서' }}</button>
+              <button
+                v-if="!isNew"
+                type="button"
+                class="theme-form-submit theme-form-submit-secondary-soft"
+                :disabled="quoting"
+                @click="makeStatementPdf"
+              >{{ quoting ? '생성 중...' : '거래명세서' }}</button>
               <button v-if="!isNew" type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="openProgress">처리현황</button>
               <button v-if="!isNew" type="button" class="theme-form-submit theme-form-submit-secondary" @click="goToOrderList">주문도서</button>
               <button type="submit" class="theme-form-submit" :disabled="isSaving">{{ isSaving ? '저장 중...' : '저장' }}</button>
@@ -262,6 +269,7 @@ type Order = {
   delivery_date: string // 출고일자
   status: OrderStatus
   note: string
+  quoteFiles?: { label: string; filename: string; urlPath: string }[] // 생성된 견적서/비교견적서/거래명세서
   createdAt?: string
   updatedAt?: string
 }
@@ -348,7 +356,11 @@ const form = reactive<Omit<Order, 'orderno' | 'createdAt' | 'updatedAt'>>({
 })
 
 function resetForm(src?: Order) {
-  quoteFiles.value = []
+  // 기존에 생성된 문서(견적서/비교견적서/거래명세서)가 있으면 보기 링크를 복원한다.
+  const files = Array.isArray(src?.quoteFiles) ? [...src.quoteFiles] : []
+  quoteFiles.value = files.sort(
+    (a, b) => QUOTE_ORDER.indexOf(a.label) - QUOTE_ORDER.indexOf(b.label),
+  )
   form.customer = src?.customer ?? ''
   form.branch = src?.branch ?? ''
   form.ordername = src?.ordername ?? ''
@@ -452,12 +464,22 @@ type QuoteFile = { label: string; filename: string; urlPath: string }
 const quoting = ref(false)
 const quoteFiles = ref<QuoteFile[]>([])
 
+// drawer 링크는 견적서·비교견적서·거래명세서를 한 자리에 모아 보여준다.
+// 같은 라벨은 최신 것으로 교체하고, 항상 이 순서로 정렬한다.
+const QUOTE_ORDER = ['견적서', '비교견적서', '거래명세서']
+function mergeQuoteFiles(next: QuoteFile[]) {
+  const map = new Map(quoteFiles.value.map((f) => [f.label, f]))
+  for (const f of next) map.set(f.label, f)
+  quoteFiles.value = [...map.values()].sort(
+    (a, b) => QUOTE_ORDER.indexOf(a.label) - QUOTE_ORDER.indexOf(b.label),
+  )
+}
+
 async function makeQuotePdf() {
   if (editingNo.value == null || quoting.value) return
   quoting.value = true
   message.value = ''
   isError.value = false
-  quoteFiles.value = []
   try {
     const res = await $fetch<{
       ok: boolean
@@ -466,11 +488,37 @@ async function makeQuotePdf() {
 
     const d = res.data
     if (!d?.quote?.urlPath) throw new Error('no url')
-    quoteFiles.value = [d.quote, d.compare].filter(Boolean)
+    mergeQuoteFiles([d.quote, d.compare].filter(Boolean))
+    await refresh() // 저장된 문서 링크가 주문 목록에도 반영되도록
     message.value = `${d.count}종 · 견적 ${d.total.toLocaleString('ko-KR')}원 / 비교 ${d.compareTotal.toLocaleString('ko-KR')}원`
   } catch (err: any) {
     isError.value = true
     message.value = err?.data?.message || '견적서 생성에 실패했습니다.'
+  } finally {
+    quoting.value = false
+  }
+}
+
+// 거래명세서 PDF. 견적서와 같은 양식이되 제목/일자(출고일자)만 다르다.
+async function makeStatementPdf() {
+  if (editingNo.value == null || quoting.value) return
+  quoting.value = true
+  message.value = ''
+  isError.value = false
+  try {
+    const res = await $fetch<{
+      ok: boolean
+      data: { statement: QuoteFile; count: number; total: number }
+    }>(`${API}/${editingNo.value}/statement-pdf`, { method: 'POST', credentials: 'include' })
+
+    const d = res.data
+    if (!d?.statement?.urlPath) throw new Error('no url')
+    mergeQuoteFiles([d.statement].filter(Boolean))
+    await refresh() // 저장된 문서 링크가 주문 목록에도 반영되도록
+    message.value = `${d.count}종 · 거래명세서 ${d.total.toLocaleString('ko-KR')}원`
+  } catch (err: any) {
+    isError.value = true
+    message.value = err?.data?.message || '거래명세서 생성에 실패했습니다.'
   } finally {
     quoting.value = false
   }

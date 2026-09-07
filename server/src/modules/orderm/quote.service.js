@@ -7,12 +7,36 @@
 //   견적서     : 우리(도서관학교) 명의. 할인가는 주문도서에 저장된 값.
 //   비교견적서 : 비교 업체 명의. 할인가를 정가의 5% 만큼 더 비싸게 잡는다.
 // 두 문서 모두 할인가는 10원 미만을 버린다. (15,165 → 15,160)
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { getConfig } from '../cms/config.mjs';
-import { findOrderByNo } from './order.repository.js';
+import { findOrderByNo, updateOrderByNo } from './order.repository.js';
 import { listOrderList } from './orderlist.repository.js';
+
+// 견적서 도장 이미지 위치: apps/libraryschool/public/Images/
+//   libraryschool.png — 견적서(도서관학교) 도장
+//   aladin.png        — 비교견적서(알라딘) 도장
+// (server/src/modules/orderm → 저장소 루트 → apps/…, dist 빌드에서도 동일하게 해석됨)
+const STAMP_DIR = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../../apps/libraryschool/public/Images',
+);
+
+// 도장 이미지를 data URI(base64)로 읽는다. 파일이 없으면 ''(도장 없이 렌더).
+async function loadStampDataUri(filename) {
+  try {
+    const buf = await readFile(path.join(STAMP_DIR, filename));
+    const ext = path.extname(filename).toLowerCase();
+    const mime = ext === '.jpg' || ext === '.jpeg'
+      ? 'image/jpeg'
+      : ext === '.svg' ? 'image/svg+xml' : 'image/png';
+    return `data:${mime};base64,${buf.toString('base64')}`;
+  } catch {
+    return '';
+  }
+}
 
 // 견적서(우리) 공급자 정보. 양식에 그대로 찍히는 값이라 여기서만 고친다.
 const SUPPLIER = {
@@ -105,8 +129,9 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// 견적서/비교견적서에 들어갈 값들을 주문/주문도서에서 뽑아낸다.
-export async function buildQuoteData(orderNo) {
+// 견적서/비교견적서/거래명세서에 들어갈 값들을 주문/주문도서에서 뽑아낸다.
+// options.docTitle: 문서 제목(기본 '견적서'). options.dateSource: 'delivery' 면 출고일자를 일자로 쓴다.
+export async function buildQuoteData(orderNo, options = {}) {
   const on = Number(orderNo);
   if (!Number.isFinite(on) || on <= 0) {
     throw appError('주문번호(orderNo)가 필요합니다.', 400);
@@ -143,11 +168,16 @@ export async function buildQuoteData(orderNo) {
   const total = rows.reduce((sum, r) => sum + r.amount, 0);
   const compareTotal = rows.reduce((sum, r) => sum + r.compareAmount, 0);
 
+  const date = options.dateSource === 'delivery'
+    ? (order.delivery_date || todayStr())
+    : (order.quote_date || order.order_date || todayStr());
+
   return {
     orderNo: on,
+    docTitle: options.docTitle || '견적서',
     receiver: order.customer || '',
     reference: order.branch || '',
-    date: order.quote_date || order.order_date || todayStr(),
+    date,
     projectName: order.ordername || '',
     total,
     totalKorean: numberToKorean(total),
@@ -181,9 +211,9 @@ const BASE_CSS = `
   }
   .head { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 14px; }
   .head-left { flex: 1; min-width: 0; }
-  .head-left .line { display: flex; gap: 10px; margin-bottom: 9px; font-size: 10.5pt; }
-  .head-left .lbl { width: 62px; flex: none; letter-spacing: 3px; white-space: nowrap; }
-  .head-left .val { font-weight: 700; border-bottom: 1px solid #000; padding: 0 4px 1px; min-width: 90px; }
+  .head-left .line { display: flex; gap: 4px; margin-bottom: 9px; font-size: 10.5pt; }
+  .head-left .lbl { width: 46px; flex: none; letter-spacing: 2px; white-space: nowrap; }
+  .head-left .val { font-weight: 700; border-bottom: 1px solid #000; padding: 0 4px 1px; min-width: 90px; white-space: nowrap; }
 
   table.items { border-collapse: collapse; width: 100%; }
   table.items th, table.items td { border: 1px solid #000; padding: 3px 5px; font-size: 9.5pt; }
@@ -195,6 +225,17 @@ const BASE_CSS = `
   .c-num   { width: 62px;  text-align: right; }
   th.c-num { text-align: center; }
   .c-note  { width: 48px; }
+
+  /* 공급자 표 + 도장 오버레이 */
+  .supplier-wrap { position: relative; flex: none; }
+  .supplier-wrap .stamp {
+    position: absolute;
+    pointer-events: none;
+    /* 스캔 도장의 흰 배경을 투명처럼 보이게(빨강만 남김) */
+    mix-blend-mode: multiply;
+  }
+  .supplier-wrap .stamp-quote   { width: 18mm; height: 18mm; top: -3px; right: 4px; }
+  .supplier-wrap .stamp-compare { width: 18mm; height: 18mm; top: 11px; right: 16px; }
 `;
 
 const QUOTE_CSS = `
@@ -341,6 +382,13 @@ export function buildQuoteHtml(data, variant = 'quote') {
       </tr>
       <tr class="blank-row"><td colspan="8"></td></tr>`;
 
+  // 도장 오버레이: 견적서는 도서관학교 도장, 비교견적서는 알라딘 도장.
+  const stampSrc = compare ? data.stampCompare : data.stampQuote;
+  const stampImg = stampSrc
+    ? `<img class="stamp ${compare ? 'stamp-compare' : 'stamp-quote'}" src="${stampSrc}" alt="" />`
+    : '';
+  const supplierBox = `<div class="supplier-wrap">${supplierTable}${stampImg}</div>`;
+
   const banner = compare ? '' : `<div class="banner">${esc(s.banner)}</div>`;
   const foot = compare ? '' : `
   <div class="foot">
@@ -356,12 +404,12 @@ export function buildQuoteHtml(data, variant = 'quote') {
 <style>${BASE_CSS}${compare ? COMPARE_CSS : QUOTE_CSS}</style>
 </head>
 <body>
-  <h1 class="doc-title">견적서</h1>
+  <h1 class="doc-title">${esc(data.docTitle || '견적서')}</h1>
 
   <div class="head">
     <div class="head-left">${headLeft}
     </div>
-${supplierTable}
+${supplierBox}
   </div>
 
   ${banner}
@@ -398,10 +446,9 @@ async function renderPdf(page, html) {
   });
 }
 
-// 견적서 + 비교견적서를 한 번에 만든다.
-export async function generateQuotePdf(orderNo) {
-  const data = await buildQuoteData(orderNo);
-
+// puppeteer 로 여러 variant 를 PDF 로 렌더해 UPLOAD_DIR/<subdir> 에 저장한다.
+// urlPath 는 /api/file/<subdir>/... 로 내려 어디서나 열리게 한다.
+async function renderVariantsToPdf(data, variants, subdir) {
   let puppeteer;
   try {
     const mod = await import('puppeteer');
@@ -418,24 +465,16 @@ export async function generateQuotePdf(orderNo) {
     launchOpts.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
   }
 
-  const now = new Date();
-  const yyyy = String(now.getFullYear());
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dir = path.resolve(getConfig().uploadDir, yyyy, mm, 'pdf');
+  const dir = path.resolve(getConfig().uploadDir, subdir);
   await mkdir(dir, { recursive: true });
 
   const stamp = Date.now();
   const suffix = `${data.receiver || data.orderNo}_${data.date}`;
-  const variants = [
-    { key: 'quote', variant: 'quote', label: '견적서' },
-    { key: 'compare', variant: 'compare', label: '비교견적서' },
-  ];
 
   const browser = await puppeteer.launch(launchOpts);
   try {
     const page = await browser.newPage();
     const out = {};
-
     for (const v of variants) {
       const buf = await renderPdf(page, buildQuoteHtml(data, v.variant));
       const filename = `${sanitizeFilename(`${v.label}_${suffix}`)}.pdf`;
@@ -443,17 +482,65 @@ export async function generateQuotePdf(orderNo) {
       out[v.key] = {
         label: v.label,
         filename,
-        urlPath: `/uploads/${yyyy}/${mm}/pdf/${encodeURIComponent(filename)}?t=${stamp}`,
+        urlPath: `/api/file/${subdir}/${encodeURIComponent(filename)}?t=${stamp}`,
       };
     }
-
-    return {
-      ...out,
-      count: data.rows.length,
-      total: data.total,
-      compareTotal: data.compareTotal,
-    };
+    return out;
   } finally {
     await browser.close();
   }
+}
+
+// 생성된 문서 링크를 주문(order.quoteFiles)에 저장한다. 라벨 기준으로 최신 것 교체.
+// drawer 를 다시 열 때 '견적서/비교견적서/거래명세서 보기' 로 확인할 수 있게 한다.
+async function persistOrderDocs(orderNo, files) {
+  const order = await findOrderByNo(Number(orderNo));
+  if (!order) return;
+  const existing = Array.isArray(order.quoteFiles) ? order.quoteFiles : [];
+  const map = new Map(existing.map((f) => [f.label, f]));
+  for (const f of files) {
+    if (f) map.set(f.label, { label: f.label, filename: f.filename, urlPath: f.urlPath });
+  }
+  await updateOrderByNo(Number(orderNo), { quoteFiles: [...map.values()] });
+}
+
+// 견적서 + 비교견적서를 한 번에 만든다. → UPLOAD_DIR/estimate
+export async function generateQuotePdf(orderNo) {
+  const data = await buildQuoteData(orderNo);
+
+  // 도장 이미지(있으면 오버레이). 견적서=도서관학교, 비교견적서=알라딘.
+  data.stampQuote = await loadStampDataUri('libraryschool.png');
+  data.stampCompare = await loadStampDataUri('aladin.png');
+
+  const out = await renderVariantsToPdf(data, [
+    { key: 'quote', variant: 'quote', label: '견적서' },
+    { key: 'compare', variant: 'compare', label: '비교견적서' },
+  ], 'estimate');
+
+  await persistOrderDocs(orderNo, [out.quote, out.compare]);
+
+  return {
+    ...out,
+    count: data.rows.length,
+    total: data.total,
+    compareTotal: data.compareTotal,
+  };
+}
+
+// 거래명세서(도서관학교 명의, 제목 '거래명세서', 일자=출고일자). → UPLOAD_DIR/estimate
+export async function generateStatementPdf(orderNo) {
+  const data = await buildQuoteData(orderNo, { docTitle: '거래명세서', dateSource: 'delivery' });
+  data.stampQuote = await loadStampDataUri('libraryschool.png');
+
+  const out = await renderVariantsToPdf(data, [
+    { key: 'statement', variant: 'quote', label: '거래명세서' },
+  ], 'estimate');
+
+  await persistOrderDocs(orderNo, [out.statement]);
+
+  return {
+    ...out,
+    count: data.rows.length,
+    total: data.total,
+  };
 }

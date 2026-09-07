@@ -70,6 +70,7 @@
                   <th class="os-col-no">No</th>
                   <th>서명</th>
                   <th class="os-col-supplier">발주처</th>
+                  <th class="os-col-num">주문</th>
                   <th class="os-col-num">입고</th>
                   <th class="os-col-num">출고</th>
                   <th class="os-col-num">미출고</th>
@@ -83,6 +84,7 @@
                     <div v-if="it.publisher" class="os-sub">{{ it.publisher }}</div>
                   </td>
                   <td class="os-col-supplier">{{ it.supplier || '-' }}</td>
+                  <td class="os-col-num mono">{{ it.qty }}</td>
                   <td class="os-col-num mono">{{ it.warehousing_count }}</td>
                   <td class="os-col-num mono">{{ it.delivery_count }}</td>
                   <td class="os-col-num mono os-short">{{ it.shortage }}</td>
@@ -100,8 +102,8 @@
 // 주문 하나의 처리현황. 주문(order) 화면과 주문도서(orderList) 화면이 함께 쓴다.
 // 주문도서(order_list)를 주문번호로 받아 수량 기준으로 두 목록으로 나눈다.
 //   미입고 = 주문수량 - 입고수량 > 0
-//   미출고 = 입고수량 - 출고수량 > 0   (입고됐지만 아직 안 나간 분)
-// 두 목록은 겹칠 수 있다. 일부만 입고되고 그 입고분도 아직 출고 전인 경우다.
+//   미출고 = 주문수량 - 출고수량 > 0   (주문했지만 아직 안 나간 분)
+// 두 목록은 겹칠 수 있다. 아직 입고 안 된 도서는 미입고이면서 미출고이기도 하다.
 type ProgressItem = {
   no: number
   title: string
@@ -159,7 +161,7 @@ const pendingIn = computed(() => items.value
   .filter((it) => it.shortage > 0))
 
 const pendingOut = computed(() => items.value
-  .map((it) => ({ ...it, shortage: it.warehousing_count - it.delivery_count }))
+  .map((it) => ({ ...it, shortage: it.qty - it.delivery_count }))
   .filter((it) => it.shortage > 0))
 
 // 합계는 항목별 부족분만 더한다. 과입고(입고 > 주문)가 다른 도서의 미입고분을
@@ -170,7 +172,7 @@ const totals = computed(() => items.value.reduce(
     warehousing: acc.warehousing + it.warehousing_count,
     delivery: acc.delivery + it.delivery_count,
     pendingIn: acc.pendingIn + Math.max(0, it.qty - it.warehousing_count),
-    pendingOut: acc.pendingOut + Math.max(0, it.warehousing_count - it.delivery_count),
+    pendingOut: acc.pendingOut + Math.max(0, it.qty - it.delivery_count),
   }),
   { qty: 0, warehousing: 0, delivery: 0, pendingIn: 0, pendingOut: 0 },
 ))

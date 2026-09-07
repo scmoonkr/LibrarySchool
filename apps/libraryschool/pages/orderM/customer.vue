@@ -53,7 +53,7 @@
               <tr v-for="item in paged" :key="item.id" @click="openEdit(item)">
                 <td><strong>{{ item.name }}</strong></td>
                 <td>{{ item.branch || '-' }}</td>
-                <td class="mono">{{ item.bizno || '-' }}</td>
+                <td class="mono"><span v-if="item.image" class="customer-has-file" title="사업자등록증 파일 있음">*</span>{{ item.bizno || '-' }}</td>
                 <td>{{ inchargeLabel(item) }}</td>
                 <td class="mono">{{ item.phone || '-' }}</td>
                 <td>{{ item.email || '-' }}</td>
@@ -442,6 +442,12 @@ async function remove() {
 /* 파일 업로드 */
 .customer-file {
   margin-top: 16px;
+}
+/* 사업자등록증 파일 있는 거래처 표시(*) */
+.customer-has-file {
+  margin-right: 2px;
+  color: var(--theme-accent);
+  font-weight: 700;
 }
 .customer-file-label {
   display: block;
