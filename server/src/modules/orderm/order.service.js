@@ -6,6 +6,7 @@ import {
   listOrders,
   updateOrderByNo,
 } from './order.repository.js';
+import { sumDcPriceByOrder } from './orderlist.repository.js';
 
 const STATUSES = ['견적요청', '주문', '발주', '입고', '출고'];
 
@@ -35,6 +36,7 @@ function normalizeOrder(body = {}) {
     order_price: Number.isFinite(priceNum) ? priceNum : 0, // 주문금액
     quote_date: str(body.quote_date, 20), // 견적요청일자 (YYYY-MM-DD)
     order_date: str(body.order_date, 20), // 주문일자 (YYYY-MM-DD)
+    purchase_date: str(body.purchase_date, 20), // 발주일자 (YYYY-MM-DD)
     delivery_date: str(body.delivery_date, 20), // 출고일자
     status,
     note: str(body.note, 2000),
@@ -42,7 +44,10 @@ function normalizeOrder(body = {}) {
 }
 
 export async function getOrders() {
-  return listOrders();
+  // 주문금액(order_price)은 저장값이 아니라 해당 주문 도서(order_list)의
+  // 할인가(dc_price) 합계로 계산해서 내려준다.
+  const [orders, dcSum] = await Promise.all([listOrders(), sumDcPriceByOrder()]);
+  return orders.map((o) => ({ ...o, order_price: dcSum[Number(o.orderno)] ?? 0 }));
 }
 
 export async function createOrder(body = {}) {

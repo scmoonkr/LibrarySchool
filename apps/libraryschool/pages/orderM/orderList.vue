@@ -19,15 +19,18 @@
           <div class="theme-backend-contents-head-left">
             <h1>주문도서.</h1>
             <div class="theme-backend-contents-filters">
-              <input
-                v-model="ordernoFilter"
-                type="search"
-                name="ordernoFilter"
-                inputmode="numeric"
-                placeholder="주문번호"
-                @keyup.enter="applyOrderNo"
-                @search="applyOrderNo"
-              />
+              <label class="ol-orderno-field">
+                <span>주문번호</span>
+                <input
+                  v-model="ordernoFilter"
+                  type="search"
+                  name="ordernoFilter"
+                  inputmode="numeric"
+                  placeholder="주문번호"
+                  @keyup.enter="applyOrderNo"
+                  @search="applyOrderNo"
+                />
+              </label>
               <button type="button" class="theme-form-submit theme-form-submit-secondary-soft ol-filter-btn" @click="applyOrderNo">조회</button>
               <select v-model="statusFilter" name="statusFilter">
                 <option value="">전체 상태</option>
@@ -49,7 +52,7 @@
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!selectedKeys.size" @click="openPurchase">발주</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!contextOrderNo" @click="isProgressOpen = true">처리현황</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!selectedKeys.size" @click="openShip">출고</button>
-            <button type="button" class="theme-form-submit" :disabled="!contextOrderNo" @click="openCreate">+ 도서 추가</button>
+            <button type="button" class="theme-form-submit" :disabled="!contextOrderNo" @click="openCreate">도서추가</button>
           </div>
         </div>
 
@@ -65,11 +68,10 @@
                   <input type="checkbox" :checked="allChecked" @change="toggleAll" @click.stop />
                 </th>
                 <th class="col-num">No</th>
-                <th>ISBN</th>
-                <th>서명</th>
+                <th class="ol-title-col">서명</th>
                 <th>출판사</th>
                 <th class="col-num">주문/입고/출고</th>
-                <th class="col-num">정가</th>
+                <th class="col-num">정가/할인가</th>
                 <th>상태</th>
                 <th>발주처/발주일</th>
                 <th>입고일/출고일</th>
@@ -81,14 +83,19 @@
                   <input type="checkbox" :checked="isChecked(item)" @change="toggleOne(item)" />
                 </td>
                 <td class="col-num mono">{{ item.no }}</td>
-                <td class="mono">{{ item.isbn || '-' }}</td>
                 <td>
                   <strong>{{ item.title }}</strong>
                   <div v-if="item.subtitle" class="ol-subtitle">{{ item.subtitle }}</div>
                 </td>
-                <td>{{ item.publisher || '-' }}</td>
+                <td>
+                  {{ item.publisher || '-' }}
+                  <div v-if="item.isbn" class="ol-subtitle mono">{{ item.isbn }}</div>
+                </td>
                 <td class="col-num mono">{{ item.qty ?? 0 }} / {{ item.warehousing_count ?? 0 }} / {{ item.delivery_count ?? 0 }}</td>
-                <td class="col-num mono">{{ formatPrice(item.price) }}</td>
+                <td class="col-num mono">
+                  {{ formatPrice(item.price) }}
+                  <div class="ol-subtitle" :class="{ 'ol-dc-warn': discountRate(item) !== 10 }">{{ formatPrice(item.dc_price) }} ({{ discountRate(item) }}%)</div>
+                </td>
                 <td><span :class="['book-status', statusClass(item.status)]">{{ item.status }}</span></td>
                 <td>
                   {{ item.supplier || '-' }}
@@ -207,7 +214,7 @@
               <input v-model.number="form.price" name="price" type="number" min="0" />
             </label>
             <label class="theme-form-field c2">
-              <span>할인가</span>
+              <span>할인가({{ dcRate }}%)</span>
               <input v-model.number="form.dc_price" name="dc_price" type="number" min="0" />
             </label>
             <label class="theme-form-field c2">
@@ -556,7 +563,14 @@ function statusClass(s: BookStatus) {
   return STATUS_CLASS[s] ?? ''
 }
 function formatPrice(v: number) {
-  return `${(v ?? 0).toLocaleString('ko-KR')}원`
+  return (v ?? 0).toLocaleString('ko-KR')
+}
+// 정가 대비 할인가 할인율(%)
+function discountRate(item: { price?: number; dc_price?: number }) {
+  const p = Number(item.price) || 0
+  const d = Number(item.dc_price) || 0
+  if (p <= 0) return 0
+  return Math.round((1 - d / p) * 100)
 }
 
 // ── 모달/폼 상태 ──────────────────────────────────────────────
@@ -577,6 +591,14 @@ function blankForm(): FormShape {
   }
 }
 const form = reactive<FormShape>(blankForm())
+
+// 할인가 라벨용 할인율(%) — 정가 대비 할인가로 계산 (예: 10% 할인 → 10)
+const dcRate = computed(() => {
+  const p = Number(form.price) || 0
+  const d = Number(form.dc_price) || 0
+  if (p <= 0) return 0
+  return Math.round((1 - d / p) * 100)
+})
 
 function resetForm(src?: OrderListItem) {
   Object.assign(form, blankForm(), src ? {
@@ -761,6 +783,10 @@ async function save() {
     message.value = '서명은 필수입니다.'
     return
   }
+  // 할인가가 없으면(0/미입력) 정가의 10% 할인가로 계산. 10의 자리 절사.
+  if (!(Number(form.dc_price) > 0)) {
+    form.dc_price = Math.floor((Number(form.price) || 0) * 0.9 / 10) * 10
+  }
   isSaving.value = true
   message.value = ''
   isError.value = false
@@ -806,10 +832,13 @@ async function remove() {
 
 <style scoped>
 /* 헤더 필터 — drawer 검색 입력(.ol-drawer-search input)과 같은 모양 */
+.theme-backend-contents-filters {
+  align-items: flex-end;
+}
 .theme-backend-contents-filters input {
   padding: 7px 12px;
   border: 1px solid var(--theme-line);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--theme-bg);
   color: var(--theme-fg);
   font-family: var(--theme-sans);
@@ -822,11 +851,22 @@ async function remove() {
 .theme-backend-contents-filters input[name='ordernoFilter'] {
   width: 120px;
 }
+/* 주문번호 라벨을 입력창 위에 작게 배치 */
+.ol-orderno-field {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  color: var(--theme-fg-dim);
+}
+.ol-orderno-field > span {
+  font-size: 11px;
+}
 /* 상태 select 는 전역 .theme-backend-contents-filters select 스타일을 쓰되,
    주문번호 입력과 높이·모서리를 맞춘다. */
 .theme-backend-contents-filters select {
   padding: 7px 12px;
-  border-radius: 8px;
+  border-radius: 0;
   font-size: 13px;
 }
 /* 조회 버튼. .theme-form-submit 기본값(150px/46px)은 필터 줄에 너무 커서 낮춘다. */
@@ -840,11 +880,18 @@ async function remove() {
   white-space: nowrap;
   align-self: center;
 }
+.theme-backend-head-right .theme-form-submit {
+  min-width: 80px;
+}
 .ol-filter-btn {
-  min-width: 100px;
+  min-width: 80px;
   min-height: 33px;
-  border-radius: 8px;
+  border-radius: 0;
   padding: 0 14px;
+}
+/* 할인율이 10%가 아니면 할인가·할인율을 빨갛게 */
+.ol-subtitle.ol-dc-warn {
+  color: var(--theme-error);
 }
 
 .col-num {
@@ -853,6 +900,9 @@ async function remove() {
 .ol-check-col {
   width: 36px;
   text-align: center;
+}
+.ol-title-col {
+  width: 40%;
 }
 .ol-check-col input {
   cursor: pointer;

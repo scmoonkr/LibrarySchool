@@ -114,7 +114,7 @@
             <table v-else class="theme-backend-table cb-table">
               <thead>
                 <tr>
-                  <th class="col-num">basketNo</th>
+                  <th class="col-num cb-bsk-col">bsk#</th>
                   <th class="col-num">no</th>
                   <th>isbn</th>
                   <th>title</th>
@@ -234,7 +234,7 @@ const totalQty = computed(() => items.value.reduce((s, r) => s + (r.qty || 0), 0
 const totalReceived = computed(() => items.value.reduce((s, r) => s + (r.received || 0), 0))
 
 function formatPrice(v: number) {
-  return `${(v ?? 0).toLocaleString('ko-KR')}원`
+  return (v ?? 0).toLocaleString('ko-KR')
 }
 function setNotice(msg: string, isErr = false) {
   notice.value = msg
@@ -418,6 +418,9 @@ async function exportExcel() {
 .col-num {
   text-align: right;
 }
+.cb-bsk-col {
+  width: 48px;
+}
 
 .cb-head {
   display: flex;
@@ -434,16 +437,19 @@ async function exportExcel() {
 }
 .cb-orderno {
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   color: var(--theme-fg-dim);
+}
+.cb-orderno > span {
+  font-size: 11px;
 }
 .cb-orderno input {
   width: 120px;
   padding: 7px 10px;
   border: 1px solid var(--theme-line);
-  border-radius: 8px;
+  border-radius: 0;
   font-size: 13px;
 }
 .cb-actions {
@@ -451,6 +457,9 @@ async function exportExcel() {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+.cb-head .theme-form-submit {
+  min-width: 100px;
 }
 .cb-notice {
   margin: 8px 0 0;

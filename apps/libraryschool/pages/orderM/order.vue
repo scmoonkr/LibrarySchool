@@ -50,6 +50,7 @@
                 <th class="col-num">주문금액</th>
                 <th>견적요청일</th>
                 <th>주문일자</th>
+                <th>발주일자</th>
                 <th>출고일자</th>
               </tr>
             </thead>
@@ -63,6 +64,7 @@
                 <td class="col-num mono">{{ formatPrice(item.order_price) }}</td>
                 <td class="mono">{{ item.quote_date || '-' }}</td>
                 <td class="mono">{{ item.order_date || '-' }}</td>
+                <td class="mono">{{ item.purchase_date || '-' }}</td>
                 <td class="mono">{{ item.delivery_date || '-' }}</td>
               </tr>
             </tbody>
@@ -120,14 +122,9 @@
               <input v-model="form.branch" name="branch" maxlength="120" />
             </label>
 
-            <label class="theme-form-field order-field-wide">
+            <label class="theme-form-field">
               <span>주문명</span>
               <input v-model="form.ordername" name="ordername" maxlength="200" />
-            </label>
-
-            <label class="theme-form-field">
-              <span>주문금액</span>
-              <input v-model.number="form.order_price" name="order_price" type="number" min="0" step="1" />
             </label>
 
             <label class="theme-form-field">
@@ -136,8 +133,18 @@
             </label>
 
             <label class="theme-form-field">
+              <span>주문금액 <small class="order-price-hint">(주문도서 할인가 합계)</small></span>
+              <input :value="formatPrice(form.order_price)" name="order_price" readonly />
+            </label>
+
+            <label class="theme-form-field">
               <span>주문일자</span>
               <input v-model="form.order_date" name="order_date" type="date" />
+            </label>
+
+            <label class="theme-form-field">
+              <span>발주일자</span>
+              <input v-model="form.purchase_date" name="purchase_date" type="date" />
             </label>
 
             <label class="theme-form-field">
@@ -251,6 +258,7 @@ type Order = {
   order_price: number   // 주문금액
   quote_date: string    // 견적요청일자 (YYYY-MM-DD)
   order_date: string    // 주문일자 (YYYY-MM-DD)
+  purchase_date: string // 발주일자 (YYYY-MM-DD)
   delivery_date: string // 출고일자
   status: OrderStatus
   note: string
@@ -308,7 +316,7 @@ function statusClass(s: OrderStatus) {
   return STATUS_CLASS[s] ?? ''
 }
 function formatPrice(v: number) {
-  return `${(v ?? 0).toLocaleString('ko-KR')}원`
+  return (v ?? 0).toLocaleString('ko-KR')
 }
 
 // input[type=date] 가 쓰는 YYYY-MM-DD. 로컬 기준이라 toISOString() 은 쓰지 않는다.
@@ -336,7 +344,7 @@ const isError = ref(false)
 
 const form = reactive<Omit<Order, 'orderno' | 'createdAt' | 'updatedAt'>>({
   customer: '', branch: '', ordername: '', order_price: 0,
-  quote_date: '', order_date: '', delivery_date: '', status: '견적요청', note: '',
+  quote_date: '', order_date: '', purchase_date: '', delivery_date: '', status: '견적요청', note: '',
 })
 
 function resetForm(src?: Order) {
@@ -347,6 +355,7 @@ function resetForm(src?: Order) {
   form.order_price = src?.order_price ?? 0
   form.quote_date = src?.quote_date ?? ''
   form.order_date = src?.order_date ?? ''
+  form.purchase_date = src?.purchase_date ?? ''
   form.delivery_date = src?.delivery_date ?? ''
   form.status = src?.status ?? '견적요청'
   form.note = src?.note ?? ''
@@ -603,6 +612,10 @@ async function remove() {
 }
 .order-field-wide {
   grid-column: 1 / -1;
+}
+.order-price-hint {
+  color: var(--theme-fg-faint);
+  font-weight: 400;
 }
 .order-quote-links {
   display: flex;

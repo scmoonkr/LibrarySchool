@@ -16,17 +16,13 @@
 
       <main class="theme-backend-main">
         <div class="theme-backend-head cp-head">
-          <div class="cp-head-top">
-            <h1>정가조회.</h1>
-            <span class="theme-meta">{{ rows.length }} 건</span>
-          </div>
-
-          <div class="cp-filter">
-            <label class="cp-orderno">
-              <span>주문번호</span>
-              <input v-model="orderNo" type="text" name="orderNo" placeholder="예: 2" />
-            </label>
-            <div class="cp-filter-actions">
+          <h1>정가조회.</h1>
+          <label class="cp-orderno">
+            <span>주문번호</span>
+            <input v-model="orderNo" type="text" name="orderNo" placeholder="예: 2" />
+          </label>
+          <span class="theme-meta cp-count">{{ rows.length }} 건</span>
+          <div class="cp-filter-actions">
             <button type="button" class="theme-form-submit" :disabled="busy || !rows.length" @click="lookupTitlePublisher">정가조회</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="busy" @click="triggerImport">엑셀읽기</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!rows.length" @click="exportExcel">엑셀저장</button>
@@ -34,10 +30,19 @@
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!rows.length" @click="dupCheck">중복체크</button>
             <button type="button" class="theme-form-submit theme-form-submit-warning" :disabled="!rows.length" @click="dupDelete">중복삭제</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="busy || !rows.length" @click="dreamer">Dreamer</button>
-            <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="addRow">+ 도서추가</button>
+            <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="addRow">도서추가</button>
+            <button
+              type="button"
+              class="cp-copy-btn"
+              :disabled="!nonTenPercentRows.length"
+              :title="`할인율 10%가 아닌 도서 ${nonTenPercentRows.length}건의 detailByIsbn 명령 복사`"
+              aria-label="할인율 10% 아닌 도서 명령 복사"
+              @click="copyNonTenPercentCmds"
+            >
+              <i class="fa-solid fa-copy"></i>
+            </button>
             <input ref="fileInput" type="file" accept=".xlsx,.xls,.csv" class="cp-file" @change="onImport" />
             </div>
-          </div>
         </div>
 
         <p v-if="notice" class="cp-notice">{{ notice }}</p>
@@ -84,8 +89,21 @@
                   <div v-if="item.m_author" class="cp-sub">{{ item.m_author }}</div>
                 </td>
                 <td class="col-num mono">{{ item.qty ?? 0 }}</td>
-                <td class="col-num mono">{{ formatPrice(item.price) }}</td>
+                <td class="col-num mono">
+                  {{ formatPrice(item.price) }}
+                  <div v-if="item.sale_price" class="cp-sub" :class="{ 'cp-dc-warn': discountRate(item) !== 10 }">{{ formatPrice(item.sale_price) }} ({{ discountRate(item) }}%)</div>
+                </td>
                 <td class="cp-edit-col">
+                  <button
+                    type="button"
+                    class="cp-edit-btn"
+                    :disabled="!item.isbn"
+                    :aria-label="`detailByIsbn 명령 복사`"
+                    title="node src\index.js detailByIsbn {isbn} 복사"
+                    @click.stop="copyDetailCmd(item.isbn)"
+                  >
+                    <i class="fa-solid fa-copy"></i>
+                  </button>
                   <button type="button" class="cp-edit-btn" aria-label="수정" @click.stop="openEdit(idx)">
                     <i class="fa-solid fa-pen"></i>
                   </button>
@@ -238,7 +256,14 @@ const totalQty = computed(() => rows.value.reduce((s, r) => s + (r.qty || 0), 0)
 const totalAmount = computed(() => rows.value.reduce((s, r) => s + (r.price || 0) * (r.qty || 0), 0))
 
 function formatPrice(v: number) {
-  return `${(v ?? 0).toLocaleString('ko-KR')}원`
+  return (v ?? 0).toLocaleString('ko-KR')
+}
+// 정가 대비 할인가 할인율(%)
+function discountRate(item: { price?: number; sale_price?: number }) {
+  const p = Number(item.price) || 0
+  const d = Number(item.sale_price) || 0
+  if (p <= 0) return 0
+  return Math.round((1 - d / p) * 100)
 }
 
 // ── 엑셀 읽기 ────────────────────────────────────────────────
@@ -399,6 +424,39 @@ function pickBook(b: BookHit) {
   closeBookSearch()
 }
 
+// ISBN 상세조회 명령을 클립보드로 복사. (크롤러 detailByIsbn 실행용)
+function detailCmd(isbn: string) {
+  return `node src\\index.js detailByIsbn ${String(isbn || '').trim()}`
+}
+async function copyDetailCmd(isbn: string) {
+  const code = String(isbn || '').trim()
+  if (!code) return
+  const cmd = detailCmd(code)
+  try {
+    await navigator.clipboard.writeText(cmd)
+    notice.value = `복사됨: ${cmd}`
+  } catch {
+    notice.value = '클립보드 복사에 실패했습니다.'
+  }
+}
+
+// 정가 대비 할인가가 10% 할인이 아닌(ISBN 있는) 도서들.
+const nonTenPercentRows = computed(() =>
+  rows.value.filter((r) => r.isbn && discountRate(r) !== 10),
+)
+// 위 도서들의 detailByIsbn 명령을 줄바꿈으로 이어 클립보드에 복사.
+async function copyNonTenPercentCmds() {
+  const list = nonTenPercentRows.value
+  if (!list.length) return
+  const text = list.map((r) => detailCmd(r.isbn)).join('\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    notice.value = `할인율 10% 아닌 ${list.length}건 명령 복사됨`
+  } catch {
+    notice.value = '클립보드 복사에 실패했습니다.'
+  }
+}
+
 // ── 편집 (서명 / 출판사 / 수량 / 정가 / ISBN) ─────────────────
 const isEditOpen = ref(false)
 const editRow = ref<number | null>(null)
@@ -525,7 +583,8 @@ async function saveToOrderList() {
       author: r.author || r.m_author || '',
       qty: r.qty,
       price: r.price,
-      dc_price: r.sale_price,
+      // dc_price = 정가 * 0.9, 10의 자리 절사 (예: 12585 → 12580)
+      dc_price: Math.floor((Number(r.price) || 0) * 0.9 / 10) * 10,
     }))
     const res = await $fetch<{ ok: boolean; data: { count: number } }>(`${apiBase}/api/orderm/order-list/bulk`, {
       method: 'POST',
@@ -587,46 +646,65 @@ async function dreamer() {
   text-align: right;
 }
 
+/* 제목 + 주문번호 + 건수 + 버튼들을 한 줄로 */
 .cp-head {
-  display: block;
-}
-.cp-head-top {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-/* 주문번호 + 버튼들을 한 줄로 */
-.cp-filter {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 12px;
+  flex-wrap: nowrap;
 }
-/* 버튼 묶음은 오른쪽 정렬. 좁아져서 줄바꿈이 나도 오른쪽에 붙는다. */
+/* 건수는 오른쪽 버튼 묶음 바로 앞에 붙인다. */
+.cp-count {
+  margin-left: auto;
+}
+/* 버튼 묶음은 한 줄 유지. */
 .cp-filter-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  flex-wrap: wrap;
-  margin-left: auto;
+  flex-wrap: nowrap;
 }
 .cp-filter-actions .theme-form-submit {
-  min-width: 100px;
+  min-width: 70px;
+  padding: 0 10px;
+}
+/* 할인율 10% 아닌 도서 명령 일괄 복사 아이콘 버튼 */
+.cp-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 33px;
+  padding: 0 10px;
+  border: 1px solid var(--theme-line);
+  border-radius: 0;
+  background: var(--theme-bg);
+  color: var(--theme-fg-dim);
+  cursor: pointer;
+}
+.cp-copy-btn:hover:not(:disabled) {
+  border-color: var(--theme-fg-dim);
+  color: var(--theme-fg);
+}
+.cp-copy-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .cp-orderno {
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   color: var(--theme-fg-dim);
+}
+.cp-orderno > span {
+  font-size: 11px;
 }
 .cp-orderno input {
   width: 120px;
   padding: 7px 10px;
   border: 1px solid var(--theme-line);
-  border-radius: 8px;
+  border-radius: 0;
   font-size: 13px;
 }
 .cp-file {
@@ -643,6 +721,10 @@ async function dreamer() {
   margin-top: 2px;
   font-size: 12px;
   color: var(--theme-fg-faint);
+}
+/* 할인율이 10%가 아니면 할인가를 빨갛게 */
+.cp-sub.cp-dc-warn {
+  color: var(--theme-error);
 }
 
 .cp-row {
@@ -665,8 +747,9 @@ async function dreamer() {
 }
 
 .cp-edit-col {
-  width: 44px;
+  width: 76px;
   text-align: center;
+  white-space: nowrap;
 }
 .cp-edit-btn {
   border: none;
@@ -676,9 +759,13 @@ async function dreamer() {
   padding: 4px 6px;
   border-radius: 6px;
 }
-.cp-edit-btn:hover {
+.cp-edit-btn:hover:not(:disabled) {
   background: var(--theme-bg-sunken);
   color: var(--theme-fg);
+}
+.cp-edit-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 /* 공통 모달 */

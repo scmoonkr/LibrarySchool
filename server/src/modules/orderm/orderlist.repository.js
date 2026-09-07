@@ -17,6 +17,20 @@ export async function listOrderList(filter = {}) {
     .toArray();
 }
 
+// 주문별 할인가(dc_price) 합계. 주문(order) 화면의 '주문금액' 계산에 쓴다.
+// { [orderNo]: 합계 } 형태로 반환한다.
+export async function sumDcPriceByOrder() {
+  const col = getDatabase().collection(COLLECTION_NAME);
+  const rows = await col
+    .aggregate([
+      { $group: { _id: '$orderNo', total: { $sum: { $ifNull: ['$dc_price', 0] } } } },
+    ])
+    .toArray();
+  const map = {};
+  for (const r of rows) map[Number(r._id)] = Number(r.total) || 0;
+  return map;
+}
+
 // 주문도서 교체 저장: 해당 주문(orderNo)의 기존 order_list 를 전부 삭제하고 새로 삽입.
 // 정가조회 → 주문저장에서 사용.
 export async function replaceOrderListByOrderNo(orderNo, docs) {
