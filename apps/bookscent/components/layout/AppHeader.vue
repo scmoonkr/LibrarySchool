@@ -68,8 +68,8 @@ async function handleLogout() {
   <header class="site-header" :class="{ 'is-mobile-open': mobileMenuOpen }">
     <div class="site-header-inner">
       <div class="site-brand">
-        <NuxtLink to="/" aria-label="모줄성 홈">
-          <img src="/Images/mojulseong_logo.png" alt="모줄성" />
+        <NuxtLink to="/" aria-label="도서관학교 홈">
+          <img src="/Images/mojulseong_logo.png" alt="도서관학교" />
         </NuxtLink>
       </div>
 

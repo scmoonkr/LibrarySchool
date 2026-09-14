@@ -132,7 +132,7 @@ const apiBase    = useApiBase()
 const siteConfig = useSiteConfig()
 
 const displayTitle = computed(() => props.title || siteConfig.value.siteName)
-// 이 저장소에서는 로고를 모줄성 로고로 고정한다.
+// 이 저장소에서는 로고를 도서관학교 로고로 고정한다.
 // (CMS settings.logoUrl 은 OneMinuteBible 사이트용이라 여기서는 쓰지 않는다.)
 const logoSrc = computed(() => '/Images/libraryschool_logo.png')
 // 사용자 시스템은 성경 앱과 통합돼 있다.

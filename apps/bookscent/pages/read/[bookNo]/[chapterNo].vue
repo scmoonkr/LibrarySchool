@@ -459,7 +459,7 @@ const shareNicknameLabel = computed(() => {
   return getReflectionDisplayName(shareReflection.value);
 });
 const shareHashtags = computed(() => {
-  const tags = ['#모줄성','#성경읽기','#말씀묵상','#말씀나눔'];
+  const tags = ['#도서관학교','#성경읽기','#말씀묵상','#말씀나눔'];
   // if (bookLabel.value) tags.push(`#${bookLabel.value}`);
   if (chapterLabel.value) tags.push(`#${chapterLabel.value.replace(/\s+/g, '')}`);
   return tags.join(' ');

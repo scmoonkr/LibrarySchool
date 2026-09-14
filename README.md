@@ -1,4 +1,4 @@
-# 모줄성 (One Minute Bible)
+# 도서관학교 (One Minute Bible)
 
 말씀을 읽고, 구절을 선택하고, 한 줄 묵상으로 나누는 성경 읽기 서비스입니다.
 

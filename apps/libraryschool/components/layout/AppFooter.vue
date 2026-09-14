@@ -29,7 +29,7 @@ const year = new Date().getFullYear();
     <!-- 바깥은 배경/구분선용 전체 폭, 안쪽만 본문과 같은 폭으로 맞춘다. -->
     <div class="site-footer-inner">
       <div class="site-footer-brand">
-        <NuxtLink to="/" aria-label="모줄성 홈">
+        <NuxtLink to="/" aria-label="도서관학교 홈">
           <img src="/Images/libraryschool_logo.png" alt="LibrarySchool" />
         </NuxtLink>
       </div>
@@ -47,7 +47,7 @@ const year = new Date().getFullYear();
         </NuxtLink>
       </nav>
 
-      <p class="site-footer-copy">© {{ year }} 모줄성 · 1분 성경</p>
+      <p class="site-footer-copy">© {{ year }} 도서관학교 · 1분 성경</p>
     </div>
   </footer>
 </template>

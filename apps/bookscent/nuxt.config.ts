@@ -41,7 +41,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: '모줄성 - 1분 성경',
+      title: '도서관학교',
       meta: [
         {
           name: 'viewport',
@@ -49,7 +49,7 @@ export default defineNuxtConfig({
         },
         {
           name: 'description',
-          content: '말씀을 읽고, 구절을 선택하고, 한 줄 묵상으로 나누는 모줄성 성경 읽기 서비스입니다.',
+          content: '독서의 생활화 - 사회적협동조합 도서관학교.',
         },
         {
           property: 'og:type',
@@ -57,15 +57,15 @@ export default defineNuxtConfig({
         },
         {
           property: 'og:title',
-          content: '모줄성 - 1분 성경',
+          content: '도서관학교',
         },
         {
           property: 'og:description',
-          content: '말씀을 읽고, 구절을 선택하고, 한 줄 묵상으로 나누는 모줄성 성경 읽기 서비스입니다.',
+          content: '독서의 생활화 - 사회적협동조합 도서관학교.',
         },
         {
           property: 'og:image',
-          content: '/Images/mojulseong.png',
+          content: '/Images/libraryschool.png',
         },
         {
           name: 'twitter:card',
@@ -73,22 +73,22 @@ export default defineNuxtConfig({
         },
         {
           name: 'twitter:title',
-          content: '모줄성 - 1분 성경',
+          content: '도서관학교',
         },
         {
           name: 'twitter:description',
-          content: '말씀을 읽고, 구절을 선택하고, 한 줄 묵상으로 나누는 모줄성 성경 읽기 서비스입니다.',
+          content: '독서의 생활화 - 사회적협동조합 도서관학교.',
         },
         {
           name: 'twitter:image',
-          content: '/Images/mojulseong.png',
+          content: '/Images/libraryschool.png',
         },
       ],
       link: [
         {
           rel: 'icon',
           type: 'image/png',
-          href: '/Images/mojulseong_logo_only.png',
+          href: '/Images/libraryschool_logo_only.png',
         },
         {
           rel: 'apple-touch-icon',

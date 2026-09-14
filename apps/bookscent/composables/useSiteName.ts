@@ -1,13 +1,13 @@
 // Resolved site name, in priority order:
 //   1. DB `settings.siteName` (from /api/public/site-config)
 //   2. `.env` SITE_NAME (exposed via runtimeConfig.public.siteName)
-//   3. hard fallback '모줄성'
+//   3. hard fallback '도서관학교'
 //
 // Use this instead of hard-coding a site name anywhere in the UI.
 export function useSiteName(): ComputedRef<string> {
   const config = useSiteConfig()
   const runtime = useRuntimeConfig()
   return computed(
-    () => config.value.siteName || (runtime.public.siteName as string) || '모줄성',
+    () => config.value.siteName || (runtime.public.siteName as string) || '도서관학교',
   )
 }

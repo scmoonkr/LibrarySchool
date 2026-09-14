@@ -44,7 +44,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: '모줄성 - 1분 성경',
+      title: '도서관학교 - 1분 성경',
       meta: [
         {
           name: 'viewport',
@@ -52,7 +52,7 @@ export default defineNuxtConfig({
         },
         {
           name: 'description',
-          content: '말씀을 읽고, 구절을 선택하고, 한 줄 묵상으로 나누는 모줄성 성경 읽기 서비스입니다.',
+          content: '말씀을 읽고, 구절을 선택하고, 한 줄 묵상으로 나누는 도서관학교 성경 읽기 서비스입니다.',
         },
         {
           property: 'og:type',
@@ -60,11 +60,11 @@ export default defineNuxtConfig({
         },
         {
           property: 'og:title',
-          content: '모줄성 - 1분 성경',
+          content: '도서관학교 - 1분 성경',
         },
         {
           property: 'og:description',
-          content: '말씀을 읽고, 구절을 선택하고, 한 줄 묵상으로 나누는 모줄성 성경 읽기 서비스입니다.',
+          content: '말씀을 읽고, 구절을 선택하고, 한 줄 묵상으로 나누는 도서관학교 성경 읽기 서비스입니다.',
         },
         {
           property: 'og:image',
@@ -76,11 +76,11 @@ export default defineNuxtConfig({
         },
         {
           name: 'twitter:title',
-          content: '모줄성 - 1분 성경',
+          content: '도서관학교 - 1분 성경',
         },
         {
           name: 'twitter:description',
-          content: '말씀을 읽고, 구절을 선택하고, 한 줄 묵상으로 나누는 모줄성 성경 읽기 서비스입니다.',
+          content: '말씀을 읽고, 구절을 선택하고, 한 줄 묵상으로 나누는 도서관학교 성경 읽기 서비스입니다.',
         },
         {
           name: 'twitter:image',
