@@ -321,7 +321,7 @@ export function buildQuoteHtml(data, variant = 'quote') {
       <div class="line"><span class="lbl">참 조</span>: <span class="val">${esc(data.reference)}</span></div>
       <div class="line"><span class="lbl">일 자</span>: <span class="val">${esc(data.date)}</span></div>
       <div class="line"><span class="lbl">사업명</span>: <span class="val">${esc(data.projectName)}</span></div>
-      <div class="line"><span class="lbl">금 액</span>: <span class="val">\\${won(data.total)}원(${esc(data.totalKorean)}원)</span></div>`;
+      <div class="line"><span class="lbl">금 액</span>: <span class="val">₩${won(data.total)}원(${esc(data.totalKorean)}원)</span></div>`;
 
   const supplierTable = compare ? `
     <table class="supplier">

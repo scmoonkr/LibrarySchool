@@ -258,10 +258,28 @@
             >삭제</button>
             <div class="ol-actions-right">
               <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="clearForm">지우기</button>
+              <button
+                type="button"
+                class="theme-form-submit theme-form-submit-secondary-soft"
+                :disabled="!form.isbn.trim() || aladinLoading"
+                @click="openAladin"
+              >{{ aladinLoading ? '조회 중...' : 'aladin' }}</button>
               <button type="submit" class="theme-form-submit" :disabled="isSaving">{{ isSaving ? '저장 중...' : '저장' }}</button>
             </div>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- 알라딘 상품페이지 모달 -->
+    <div v-if="isAladinOpen" class="ol-aladin-modal" @click="isAladinOpen = false">
+      <div class="ol-aladin-panel" @click.stop>
+        <div class="ol-aladin-head">
+          <strong>알라딘 상품페이지</strong>
+          <a :href="aladinUrl" target="_blank" rel="noopener" class="ol-aladin-open">새 창에서 열기 ↗</a>
+          <button type="button" class="theme-backend-close" aria-label="닫기" @click="isAladinOpen = false">×</button>
+        </div>
+        <iframe :src="aladinUrl" class="ol-aladin-frame" referrerpolicy="no-referrer" title="알라딘 상품페이지"></iframe>
       </div>
     </div>
 
@@ -422,6 +440,34 @@ const contextOrderNo = computed(() => {
 })
 const renumbering = ref(false)
 const isProgressOpen = ref(false)
+
+// ── 알라딘 상품페이지 ────────────────────────────────────────
+// ISBN 으로 Reading.books 의 item_id 를 받아 알라딘 상품페이지를 모달로 띄운다.
+const isAladinOpen = ref(false)
+const aladinUrl = ref('')
+const aladinLoading = ref(false)
+async function openAladin() {
+  const isbn = (form.isbn || '').trim()
+  if (!isbn || aladinLoading.value) return
+  aladinLoading.value = true
+  message.value = ''
+  isError.value = false
+  try {
+    const info = await $fetch<{ itemID?: string; url?: string }>(
+      `${apiBase}/api/aladin/${encodeURIComponent(isbn)}`,
+      { credentials: 'include' },
+    )
+    const itemId = String(info?.itemID || '').trim()
+    if (!itemId) throw new Error('no itemId')
+    aladinUrl.value = `https://www.aladin.co.kr/shop/wproduct.aspx?ItemId=${itemId}`
+    isAladinOpen.value = true
+  } catch (err: any) {
+    isError.value = true
+    message.value = err?.data?.message || '알라딘 상품정보를 찾을 수 없습니다.'
+  } finally {
+    aladinLoading.value = false
+  }
+}
 
 // ── 체크박스 선택 & 발주 ─────────────────────────────────────
 const SUPPLIERS = ['교보도매', '교보매장', '알라딘도매', '알라딘', '교보', 'Amazon', '기타'] as const
@@ -932,6 +978,49 @@ async function remove() {
   justify-content: center;
   padding-top: 10vh;
   background: rgba(10, 12, 16, 0.32);
+}
+
+/* 알라딘 상품페이지 모달 */
+.ol-aladin-modal {
+  position: fixed;
+  inset: var(--theme-topbar-h) 0 0 0;
+  z-index: 170;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4vh 16px;
+  background: rgba(10, 12, 16, 0.4);
+}
+.ol-aladin-panel {
+  width: min(100%, 960px);
+  height: 100%;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--theme-bg);
+  border: 1px solid var(--theme-line);
+  border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(18, 24, 32, 0.24);
+  overflow: hidden;
+}
+.ol-aladin-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--theme-line);
+  font-size: 15px;
+}
+.ol-aladin-open {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-accent);
+}
+.ol-aladin-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
 }
 .ol-purchase-panel {
   width: min(100%, 400px);
