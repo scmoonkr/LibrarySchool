@@ -44,7 +44,7 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
-      title: '도서관학교 - 1분 성경',
+      title: '도서관학교',
       meta: [
         {
           name: 'viewport',
@@ -60,7 +60,7 @@ export default defineNuxtConfig({
         },
         {
           property: 'og:title',
-          content: '도서관학교 - 1분 성경',
+          content: '도서관학교',
         },
         {
           property: 'og:description',
@@ -68,7 +68,7 @@ export default defineNuxtConfig({
         },
         {
           property: 'og:image',
-          content: '/Images/mojulseong.png',
+          content: '/Images/libraryschool.png',
         },
         {
           name: 'twitter:card',
@@ -76,7 +76,7 @@ export default defineNuxtConfig({
         },
         {
           name: 'twitter:title',
-          content: '도서관학교 - 1분 성경',
+          content: '도서관학교',
         },
         {
           name: 'twitter:description',
@@ -84,18 +84,18 @@ export default defineNuxtConfig({
         },
         {
           name: 'twitter:image',
-          content: '/Images/mojulseong.png',
+          content: '/Images/libraryschool.png',
         },
       ],
       link: [
         {
           rel: 'icon',
           type: 'image/png',
-          href: '/Images/mojulseong_logo_only.png',
+          href: '/Images/libraryschool_logo_only.png',
         },
         {
           rel: 'apple-touch-icon',
-          href: '/Images/mojulseong_logo_only.png',
+          href: '/Images/libraryschool_logo_only.png',
         },
         {
           rel: 'stylesheet',

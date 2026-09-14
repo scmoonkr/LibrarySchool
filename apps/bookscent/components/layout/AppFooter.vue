@@ -21,7 +21,7 @@ const year = new Date().getFullYear();
         </NuxtLink>
       </nav>
 
-      <p class="site-footer-copy">© {{ year }} 도서관학교 · 1분 성경</p>
+      <p class="site-footer-copy">© {{ year }} 도서관학교</p>
     </div>
   </footer>
 </template>
