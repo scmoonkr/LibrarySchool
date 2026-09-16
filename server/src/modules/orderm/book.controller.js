@@ -1,9 +1,10 @@
-import { batchLookup, searchByIsbn, searchByTitle, searchByTitlePublisher } from './book.repository.js';
+import { batchLookup, searchByIsbn, searchByItemId, searchByTitle, searchByTitlePublisher } from './book.repository.js';
 
 // 결과를 주문도서 폼이 쓰는 형태로 정리.
 function toResult(b) {
   return {
     isbn: b.isbn || '',
+    item_id: b.item_id || '',
     title: b.title || '',
     subtitle: b.subtitle || '',
     series_name: b.series_name || '',
@@ -14,15 +15,18 @@ function toResult(b) {
   };
 }
 
-// GET /api/orderm/books?isbn=... | ?q=...
+// GET /api/orderm/books?item_id=... | ?isbn=... | ?tp=... | ?q=...
 export async function searchBooks(req, res, next) {
   try {
+    const itemId = String(req.query.item_id || '').trim();
     const isbn = String(req.query.isbn || '').trim();
     const tp = String(req.query.tp || '').trim();
     const q = String(req.query.q || '').trim();
 
     let rows = [];
-    if (isbn) {
+    if (itemId) {
+      rows = await searchByItemId(itemId);
+    } else if (isbn) {
       rows = await searchByIsbn(isbn);
     } else if (tp) {
       rows = await searchByTitlePublisher(tp);

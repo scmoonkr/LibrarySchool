@@ -28,6 +28,15 @@
                 @keyup.enter="loadOrder"
               />
             </label>
+            <label class="cb-order-select-field">
+              <span>주문</span>
+              <select v-model="orderNo" name="orderSelect" class="cb-order-select" @change="loadOrder">
+                <option value="">주문 선택</option>
+                <option v-for="o in orderOptions" :key="o.orderno" :value="String(o.orderno)">
+                  #{{ o.orderno }} · {{ o.customer }}{{ o.ordername ? ' · ' + o.ordername : '' }} ({{ o.status }})
+                </option>
+              </select>
+            </label>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="loadOrder">불러오기</button>
           </div>
           <div class="cb-actions">
@@ -206,6 +215,24 @@ const apiBase = useApiBase()
 
 const isSidebarOpen = ref(false)
 const orderNo = ref('')
+
+// 주문 선택 드롭다운 — 주문(orders)을 orderNo 큰 순서로 나열한다.
+// (서버가 orderno 내림차순으로 내려준다.) 고르면 그 주문을 바로 불러온다.
+type OrderOption = {
+  orderno: number
+  customer: string
+  ordername: string
+  status: string
+}
+const { data: ordersData } = await useAsyncData(
+  'checkbook-orders-filter',
+  () => $fetch<{ ok: boolean; data: OrderOption[] }>(`${apiBase}/api/orderm/orders`, {
+    credentials: 'include',
+  }),
+  { server: false, default: () => ({ ok: true, data: [] as OrderOption[] }) },
+)
+const orderOptions = computed<OrderOption[]>(() => ordersData.value?.data ?? [])
+
 const items = ref<Item[]>([])
 const basketSize = ref(DEFAULT_BASKET_SIZE)
 const isBasketModalOpen = ref(false)
@@ -447,6 +474,24 @@ async function exportExcel() {
 }
 .cb-orderno input {
   width: 120px;
+  padding: 7px 10px;
+  border: 1px solid var(--theme-line);
+  border-radius: 0;
+  font-size: 13px;
+}
+/* 주문 선택 드롭다운 — 주문번호 필드와 같은 라벨 배치 */
+.cb-order-select-field {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  color: var(--theme-fg-dim);
+}
+.cb-order-select-field > span {
+  font-size: 11px;
+}
+.cb-order-select {
+  max-width: 240px;
   padding: 7px 10px;
   border: 1px solid var(--theme-line);
   border-radius: 0;

@@ -7,6 +7,7 @@ const MAX_TIME_MS = 3000; // 미인덱스 필드 스캔이 오래 걸리면 잘�
 // 결과로 내려줄 필드만.
 const PROJECTION = {
   _id: 0,
+  item_id: 1,
   isbn: 1,
   title: 1,
   subtitle: 1,
@@ -24,6 +25,20 @@ function escapeRegex(value) {
 
 function booksCollection() {
   return getReadingDatabase().collection(env.booksCollection);
+}
+
+// item_id 정확 검색 (item_id 유니크 인덱스 사용 → 최대 1건).
+// 대부분 문자열로 저장되지만, 혹시 숫자로 저장된 레거시 문서도 잡히도록
+// 문자열/숫자 양쪽으로 매칭한다.
+export async function searchByItemId(itemId) {
+  const q = String(itemId || '').trim();
+  if (!q) return [];
+  const values = Number.isFinite(Number(q)) ? [q, Number(q)] : [q];
+  return booksCollection()
+    .find({ item_id: { $in: values } }, { projection: PROJECTION })
+    .limit(1)
+    .maxTimeMS(MAX_TIME_MS)
+    .toArray();
 }
 
 // ISBN 접두 검색 (isbn 인덱스 사용).

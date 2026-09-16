@@ -31,6 +31,7 @@
           </div>
           <div class="theme-backend-head-right">
             <span class="theme-meta">{{ filtered.length }} 건</span>
+            <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="openPending">처리현황</button>
             <button type="button" class="theme-form-submit" @click="openCreate">+ 신규 주문</button>
           </div>
         </div>
@@ -148,8 +149,18 @@
             </label>
 
             <label class="theme-form-field">
-              <span>출고일자</span>
+              <span>출고일자(납품일)</span>
               <input v-model="form.delivery_date" name="delivery_date" type="date" />
+            </label>
+
+            <label class="theme-form-field">
+              <span>계산서발행일자</span>
+              <input v-model="form.invoice_date" name="invoice_date" type="date" />
+            </label>
+
+            <label class="theme-form-field">
+              <span>입금일자</span>
+              <input v-model="form.payment_date" name="payment_date" type="date" />
             </label>
           </div>
 
@@ -241,6 +252,44 @@
         </div>
       </div>
     </div>
+
+    <!-- 처리현황: 발주(거래중)·미입고 도서 조회 -->
+    <div v-if="isPendingOpen" class="op-modal" @click="isPendingOpen = false">
+      <div class="op-panel" @click.stop>
+        <div class="op-head">
+          <strong>처리현황 — 발주·미입고 도서</strong>
+          <span class="theme-meta">{{ pendingRows.length }} 건</span>
+          <button type="button" class="theme-backend-close" aria-label="닫기" @click="isPendingOpen = false">×</button>
+        </div>
+        <div class="op-body">
+          <div v-if="pendingLoading" class="theme-backend-state">불러오는 중...</div>
+          <div v-else-if="!pendingRows.length" class="theme-backend-state">발주 후 입고되지 않은 도서가 없습니다.</div>
+          <table v-else class="theme-backend-table op-table">
+            <thead>
+              <tr>
+                <th>주문기관/주문명</th>
+                <th>도서명</th>
+                <th>발주처</th>
+                <th>발주일</th>
+                <th>주문일</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in pendingRows" :key="`${r.orderNo}-${r.no}`">
+                <td>
+                  <strong>{{ r.customer || '-' }}</strong>
+                  <div v-if="r.ordername" class="op-sub">{{ r.ordername }}</div>
+                </td>
+                <td>{{ r.title || '-' }}</td>
+                <td>{{ r.supplier || '-' }}</td>
+                <td class="mono">{{ r.order_date || '-' }}</td>
+                <td class="mono">{{ r.orderDate || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -253,8 +302,8 @@ import OrderProgressModal from '~/components/orderM/OrderProgressModal.vue'
 // 로그인/권한이 준비되면 middleware: 'backend' 를 추가한다.
 definePageMeta({ layout: 'insure' })
 
-// 주문상태: 견적요청 → 주문 → 발주 → 입고 → 출고
-const STATUSES = ['견적요청', '주문', '발주', '입고', '출고'] as const
+// 주문상태: 견적요청 → 주문 → 발주 → 입고 → 출고 → 계산서발행 → 입금
+const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금'] as const
 type OrderStatus = typeof STATUSES[number]
 
 type Order = {
@@ -266,7 +315,9 @@ type Order = {
   quote_date: string    // 견적요청일자 (YYYY-MM-DD)
   order_date: string    // 주문일자 (YYYY-MM-DD)
   purchase_date: string // 발주일자 (YYYY-MM-DD)
-  delivery_date: string // 출고일자
+  delivery_date: string // 출고일자 / 납품일
+  invoice_date: string  // 계산서발행일자 (YYYY-MM-DD)
+  payment_date: string  // 입금일자 (YYYY-MM-DD)
   status: OrderStatus
   note: string
   quoteFiles?: { label: string; filename: string; urlPath: string }[] // 생성된 견적서/비교견적서/거래명세서
@@ -280,6 +331,37 @@ const API = `${apiBase}/api/orderm/orders`
 
 const PAGE_SIZE = 10
 const isSidebarOpen = ref(false)
+
+// ── 처리현황: 발주(거래중)·미입고 도서 ─────────────────────────
+type PendingRow = {
+  orderNo: number
+  no: number
+  title: string
+  supplier: string
+  order_date: string // 발주일 (order_list)
+  customer: string
+  ordername: string
+  orderDate: string  // 주문일 (orders)
+}
+const isPendingOpen = ref(false)
+const pendingLoading = ref(false)
+const pendingRows = ref<PendingRow[]>([])
+async function openPending() {
+  isPendingOpen.value = true
+  pendingLoading.value = true
+  try {
+    const res = await $fetch<{ ok: boolean; data: PendingRow[] }>(
+      `${apiBase}/api/orderm/order-list/pending`,
+      { credentials: 'include' },
+    )
+    pendingRows.value = res.data ?? []
+  } catch {
+    pendingRows.value = []
+  } finally {
+    pendingLoading.value = false
+  }
+}
+
 const dateFrom = ref('')
 const dateTo = ref('')
 const statusFilter = ref<'' | OrderStatus>('')
@@ -319,6 +401,8 @@ const STATUS_CLASS: Record<OrderStatus, string> = {
   발주: 'is-purchase',
   입고: 'is-instock',
   출고: 'is-shipped',
+  계산서발행: 'is-invoice',
+  입금: 'is-paid',
 }
 function statusClass(s: OrderStatus) {
   return STATUS_CLASS[s] ?? ''
@@ -352,7 +436,8 @@ const isError = ref(false)
 
 const form = reactive<Omit<Order, 'orderno' | 'createdAt' | 'updatedAt'>>({
   customer: '', branch: '', ordername: '', order_price: 0,
-  quote_date: '', order_date: '', purchase_date: '', delivery_date: '', status: '견적요청', note: '',
+  quote_date: '', order_date: '', purchase_date: '', delivery_date: '',
+  invoice_date: '', payment_date: '', status: '견적요청', note: '',
 })
 
 function resetForm(src?: Order) {
@@ -369,6 +454,8 @@ function resetForm(src?: Order) {
   form.order_date = src?.order_date ?? ''
   form.purchase_date = src?.purchase_date ?? ''
   form.delivery_date = src?.delivery_date ?? ''
+  form.invoice_date = src?.invoice_date ?? ''
+  form.payment_date = src?.payment_date ?? ''
   form.status = src?.status ?? '견적요청'
   form.note = src?.note ?? ''
   message.value = ''
@@ -395,7 +482,7 @@ function goToOrderList() {
   navigateTo(`/orderM/orderList?orderNo=${editingNo.value}`)
 }
 
-// drawer 헤더의 상태 스텝. 순서는 견적요청 → 주문 → 발주 → 입고 → 출고.
+// drawer 헤더의 상태 스텝. 순서는 견적요청 → 주문 → 발주 → 입고 → 출고 → 계산서발행 → 입금.
 // '입고'는 입고검수(스캔)에서 정해지는 값이라 버튼으로 바꾸지 않는다.
 const STATUS_STEPS: { value: OrderStatus; label: string; clickable: boolean }[] = [
   { value: '견적요청', label: '견적', clickable: true },
@@ -403,20 +490,48 @@ const STATUS_STEPS: { value: OrderStatus; label: string; clickable: boolean }[] 
   { value: '발주', label: '발주', clickable: true },
   { value: '입고', label: '입고', clickable: false },
   { value: '출고', label: '출고', clickable: true },
+  { value: '계산서발행', label: '계산서', clickable: true },
+  { value: '입금', label: '입금', clickable: true },
 ]
 
-// 상태 스텝 클릭 — 주문과 그 주문도서 전체의 상태를 같은 값으로 맞춘다.
-// 발주처·수량·날짜는 건드리지 않는다. 그건 아래 발주/출고 버튼이 하는 일이다.
+// 상태 스텝 클릭 — 주문과 그 주문도서 전체의 상태를 맞추고, 상태별 관련 날짜/발주처를 함께 갱신한다.
+//  견적요청 → 견적일(quote_date) = 오늘
+//  주문      → 주문일(order_date) = 오늘, 납품일(delivery_date) = 주문일 + 7일
+//  발주      → 발주일(purchase_date) = 오늘, 발주처(supplier) = '교보도매'
+//  출고      → 출고일(delivery_date) = 오늘
+//  계산서발행 → 발행일(invoice_date) = 오늘
+//  입금      → 입금일(payment_date) = 오늘
+// (날짜/발주처는 확인(confirm) 이후에 반영된다 — runBulk 가 formPatch 를 적용하고 폼 전체를 저장한다.)
 function applyStatus(status: OrderStatus) {
+  const t = todayStr()
+  let formPatch: Partial<typeof form> | undefined
+  let supplier: string | undefined
+
+  if (status === '견적요청') {
+    formPatch = { quote_date: t }
+  } else if (status === '주문') {
+    formPatch = { order_date: t, delivery_date: addDays(t, 7) }
+  } else if (status === '발주') {
+    formPatch = { purchase_date: t }
+    supplier = '교보도매'
+  } else if (status === '출고') {
+    formPatch = { delivery_date: t }
+  } else if (status === '계산서발행') {
+    formPatch = { invoice_date: t }
+  } else if (status === '입금') {
+    formPatch = { payment_date: t }
+  }
+
   return runBulk(
     `상태를 '${status}' 로`,
     `주문 #${editingNo.value} 와 그 도서 전체의 상태를 '${status}' 로 바꿀까요?`,
     (orderNo) => $fetch(`${apiBase}/api/orderm/order-list/set-status`, {
       method: 'POST',
       credentials: 'include',
-      body: { orderNo, status },
+      body: { orderNo, status, ...(supplier ? { supplier } : {}) },
     }),
     status,
+    formPatch,
   )
 }
 
@@ -431,6 +546,7 @@ async function runBulk(
   confirmText: string,
   run: (orderNo: number) => Promise<unknown>,
   orderStatus?: OrderStatus,
+  formPatch?: Partial<typeof form>,
 ) {
   if (editingNo.value == null || bulkBusy.value) return
   if (!window.confirm(confirmText)) return
@@ -439,6 +555,8 @@ async function runBulk(
   message.value = ''
   isError.value = false
   try {
+    // 확인 이후에만 날짜/발주처 등 폼 값을 반영한다(취소 시 폼이 바뀌지 않도록).
+    if (formPatch) Object.assign(form, formPatch)
     await run(editingNo.value)
     if (orderStatus) {
       form.status = orderStatus
@@ -653,6 +771,8 @@ async function remove() {
 .order-status.is-purchase { background: #fef3c7; color: #92400e; border-color: #fde68a; }
 .order-status.is-instock  { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
 .order-status.is-shipped  { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
+.order-status.is-invoice  { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
+.order-status.is-paid     { background: #ecfdf5; color: #047857; border-color: #6ee7b7; }
 
 /* drawer */
 .theme-backend-user-drawer {
@@ -843,6 +963,52 @@ async function remove() {
   white-space: nowrap;
 }
 .customer-search-meta {
+  font-size: 12px;
+  color: var(--theme-fg-faint);
+}
+
+/* 처리현황 모달 */
+.op-modal {
+  position: fixed;
+  inset: var(--theme-topbar-h) 0 0 0;
+  z-index: 160;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 6vh 16px;
+  background: rgba(10, 12, 16, 0.4);
+}
+.op-panel {
+  width: min(100%, 900px);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--theme-bg);
+  border: 1px solid var(--theme-line);
+  border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(18, 24, 32, 0.24);
+  overflow: hidden;
+}
+.op-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--theme-line);
+  font-size: 15px;
+}
+.op-head .theme-meta {
+  margin-left: 4px;
+}
+.op-head .theme-backend-close {
+  margin-left: auto;
+}
+.op-body {
+  overflow-y: auto;
+  padding: 8px 12px 16px;
+}
+.op-sub {
+  margin-top: 2px;
   font-size: 12px;
   color: var(--theme-fg-faint);
 }

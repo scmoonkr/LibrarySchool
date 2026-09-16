@@ -17,6 +17,48 @@ export async function listOrderList(filter = {}) {
     .toArray();
 }
 
+// 처리현황: 상태가 '발주'(거래중)이면서 아직 입고되지 않은 도서 목록.
+// 주문(orders)과 조인해 주문기관/주문명/주문일을 함께 내려준다.
+export async function listPendingPurchase() {
+  const col = getDatabase().collection(COLLECTION_NAME);
+  return col
+    .aggregate([
+      // 발주(거래중) 상태 & 입고수량이 주문수량에 못 미치는(=미입고) 도서.
+      {
+        $match: {
+          status: '발주',
+          $expr: {
+            $lt: [{ $ifNull: ['$warehousing_count', 0] }, { $ifNull: ['$qty', 0] }],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: 'orders',
+          localField: 'orderNo',
+          foreignField: 'orderno',
+          as: 'order',
+        },
+      },
+      { $unwind: { path: '$order', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          orderNo: 1,
+          no: 1,
+          title: 1,
+          supplier: 1,
+          order_date: 1, // 발주일 (order_list)
+          customer: '$order.customer',
+          ordername: '$order.ordername',
+          orderDate: '$order.order_date', // 주문일 (orders)
+        },
+      },
+      { $sort: { order_date: -1, orderNo: -1, no: 1 } },
+    ])
+    .toArray();
+}
+
 // 주문별 할인가(dc_price) 합계. 주문(order) 화면의 '주문금액' 계산에 쓴다.
 // { [orderNo]: 합계 } 형태로 반환한다.
 export async function sumDcPriceByOrder() {

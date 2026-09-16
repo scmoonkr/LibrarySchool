@@ -2,6 +2,7 @@ import {
   createOrderListItem,
   editOrderListItem,
   getOrderList,
+  getPendingPurchase,
   removeOrderListItem,
   renumberOrderList,
   saveOrderListBulk,
@@ -14,6 +15,16 @@ import {
 export async function listItems(req, res, next) {
   try {
     const items = await getOrderList({ orderNo: req.query.orderNo });
+    return res.json({ ok: true, data: items });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// GET /api/orderm/order-list/pending — 처리현황(발주·미입고) 목록.
+export async function listPendingItems(req, res, next) {
+  try {
+    const items = await getPendingPurchase();
     return res.json({ ok: true, data: items });
   } catch (error) {
     return next(error);

@@ -8,7 +8,7 @@ import {
 } from './order.repository.js';
 import { sumDcPriceByOrder } from './orderlist.repository.js';
 
-const STATUSES = ['견적요청', '주문', '발주', '입고', '출고'];
+const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금'];
 
 function appError(message, statusCode = 400) {
   const error = new Error(message);
@@ -37,7 +37,9 @@ function normalizeOrder(body = {}) {
     quote_date: str(body.quote_date, 20), // 견적요청일자 (YYYY-MM-DD)
     order_date: str(body.order_date, 20), // 주문일자 (YYYY-MM-DD)
     purchase_date: str(body.purchase_date, 20), // 발주일자 (YYYY-MM-DD)
-    delivery_date: str(body.delivery_date, 20), // 출고일자
+    delivery_date: str(body.delivery_date, 20), // 출고일자 / 납품일
+    invoice_date: str(body.invoice_date, 20),   // 계산서발행일자 (YYYY-MM-DD)
+    payment_date: str(body.payment_date, 20),   // 입금일자 (YYYY-MM-DD)
     status,
     note: str(body.note, 2000),
   };

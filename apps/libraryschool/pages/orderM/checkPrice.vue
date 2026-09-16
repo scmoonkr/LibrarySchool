@@ -21,6 +21,15 @@
             <span>주문번호</span>
             <input v-model="orderNo" type="text" name="orderNo" placeholder="예: 2" />
           </label>
+          <label class="cp-order-select-field">
+            <span>주문</span>
+            <select v-model="orderNo" name="orderSelect" class="cp-order-select">
+              <option value="">주문 선택</option>
+              <option v-for="o in orderOptions" :key="o.orderno" :value="String(o.orderno)">
+                #{{ o.orderno }} · {{ o.customer }}{{ o.ordername ? ' · ' + o.ordername : '' }} ({{ o.status }})
+              </option>
+            </select>
+          </label>
           <span class="theme-meta cp-count">{{ rows.length }} 건</span>
           <div class="cp-filter-actions">
             <button type="button" class="theme-form-submit" :disabled="busy || !rows.length" @click="lookupTitlePublisher">정가조회</button>
@@ -247,6 +256,24 @@ const apiBase = useApiBase()
 
 const isSidebarOpen = ref(false)
 const orderNo = ref('')
+
+// 주문 선택 드롭다운 — 주문(orders)을 orderNo 큰 순서로 나열한다.
+// (서버가 orderno 내림차순으로 내려준다.) 고르면 그 주문번호가 채워진다.
+type OrderOption = {
+  orderno: number
+  customer: string
+  ordername: string
+  status: string
+}
+const { data: ordersData } = await useAsyncData(
+  'checkprice-orders-filter',
+  () => $fetch<{ ok: boolean; data: OrderOption[] }>(`${apiBase}/api/orderm/orders`, {
+    credentials: 'include',
+  }),
+  { server: false, default: () => ({ ok: true, data: [] as OrderOption[] }) },
+)
+const orderOptions = computed<OrderOption[]>(() => ordersData.value?.data ?? [])
+
 const rows = ref<Row[]>([])
 const busy = ref(false)
 const notice = ref('')
@@ -702,6 +729,24 @@ async function dreamer() {
 }
 .cp-orderno input {
   width: 120px;
+  padding: 7px 10px;
+  border: 1px solid var(--theme-line);
+  border-radius: 0;
+  font-size: 13px;
+}
+/* 주문 선택 드롭다운 — 주문번호 필드와 같은 라벨 배치 */
+.cp-order-select-field {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  color: var(--theme-fg-dim);
+}
+.cp-order-select-field > span {
+  font-size: 11px;
+}
+.cp-order-select {
+  max-width: 220px;
   padding: 7px 10px;
   border: 1px solid var(--theme-line);
   border-radius: 0;

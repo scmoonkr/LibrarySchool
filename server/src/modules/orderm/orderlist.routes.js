@@ -3,6 +3,7 @@ import {
   createItem,
   deleteItem,
   listItems,
+  listPendingItems,
   renumberItems,
   saveBulkItems,
   savePurchaseItems,
@@ -18,6 +19,7 @@ import {
 const router = Router();
 
 router.get('/', listItems);
+router.get('/pending', listPendingItems);
 router.post('/', createItem);
 router.post('/renumber', renumberItems);
 router.post('/warehousing', saveWarehousingItems);

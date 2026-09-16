@@ -31,6 +31,15 @@
                   @search="applyOrderNo"
                 />
               </label>
+              <label class="ol-order-select-field">
+                <span>주문</span>
+                <select v-model="ordernoFilter" name="orderSelect" class="ol-order-select" @change="applyOrderNo">
+                  <option value="">주문 선택</option>
+                  <option v-for="o in orderOptions" :key="o.orderno" :value="String(o.orderno)">
+                    #{{ o.orderno }} · {{ o.customer }}{{ o.ordername ? ' · ' + o.ordername : '' }} ({{ o.status }})
+                  </option>
+                </select>
+              </label>
               <button type="button" class="theme-form-submit theme-form-submit-secondary-soft ol-filter-btn" @click="applyOrderNo">조회</button>
               <select v-model="statusFilter" name="statusFilter">
                 <option value="">전체 상태</option>
@@ -133,23 +142,39 @@
 
         <form class="theme-backend-form" @submit.prevent="save">
           <div class="ol-grid">
-            <!-- 일련번호 / 상태 / ISBN (1/3, 1/3, 1/3) -->
-            <label class="theme-form-field c2">
+            <!-- 일련번호 / 상태 / ISBN / itemId (각 1/4) -->
+            <label class="theme-form-field c-quarter">
               <span>일련번호 (No)</span>
               <input :value="isNew ? '주문 내 자동증가' : editing?.no" disabled />
             </label>
-            <label class="theme-form-field c2">
+            <label class="theme-form-field c-quarter">
               <span>상태</span>
               <select v-model="form.status" name="status">
                 <option v-for="s in STATUSES" :key="s" :value="s">{{ s }}</option>
               </select>
             </label>
-            <label class="theme-form-field c2">
+            <label class="theme-form-field c-quarter">
               <span>ISBN</span>
               <div class="book-pick">
                 <input v-model="form.isbn" name="isbn" maxlength="40" />
                 <button type="button" class="book-pick-btn" aria-label="ISBN 검색" @click="pickIsbnDirect">
                   <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+              </div>
+            </label>
+            <label class="theme-form-field c-quarter">
+              <span>itemId</span>
+              <div class="book-pick">
+                <input v-model="form.item_id" name="item_id" maxlength="40" placeholder="알라딘 itemId" />
+                <button
+                  type="button"
+                  class="book-pick-btn"
+                  :disabled="(!form.item_id.trim() && !form.isbn.trim()) || itemIdLoading"
+                  title="itemId 로 도서(Reading.books) 조회 · itemId 가 비어 있으면 ISBN 으로 itemId 조회"
+                  aria-label="itemId 로 도서 조회"
+                  @click="onItemIdSearch"
+                >
+                  <i :class="itemIdLoading ? 'fa-solid fa-spinner fa-spin' : 'fa-solid fa-magnifying-glass'"></i>
                 </button>
               </div>
             </label>
@@ -264,6 +289,13 @@
                 :disabled="!form.isbn.trim() || aladinLoading"
                 @click="openAladin"
               >{{ aladinLoading ? '조회 중...' : 'aladin' }}</button>
+              <button
+                type="button"
+                class="theme-form-submit theme-form-submit-secondary-soft"
+                :disabled="!form.item_id.trim() || crawlLoading"
+                title="itemId 로 알라딘 상세를 다시 수집해 도서 DB(Reading.books)에 저장합니다."
+                @click="runCrawl"
+              >{{ crawlLoading ? '수집 중...' : 'crawling' }}</button>
               <button type="submit" class="theme-form-submit" :disabled="isSaving">{{ isSaving ? '저장 중...' : '저장' }}</button>
             </div>
           </div>
@@ -387,14 +419,15 @@ import OrderProgressModal from '~/components/orderM/OrderProgressModal.vue'
 definePageMeta({ layout: 'insure' })
 
 // 도서 상태
-// 주문상태: 견적요청(기본) → 주문 → 발주 → 입고 → 출고
-const STATUSES = ['견적요청', '주문', '발주', '입고', '출고'] as const
+// 주문상태: 견적요청(기본) → 주문 → 발주 → 입고 → 출고 → 계산서발행 → 입금
+const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금'] as const
 type BookStatus = typeof STATUSES[number]
 
 type OrderListItem = {
   orderNo: number
   no: number
   isbn: string
+  item_id: string
   title: string
   subtitle: string
   publisher: string
@@ -433,6 +466,23 @@ function applyOrderNo() {
 const statusFilter = ref<'' | BookStatus>('')
 const headerSearch = ref('')
 
+// 주문 선택 드롭다운 — 주문(orders)을 orderNo 큰 순서로 나열한다.
+// (서버가 orderno 내림차순으로 내려준다.) 고르면 그 주문번호로 조회된다.
+type OrderOption = {
+  orderno: number
+  customer: string
+  ordername: string
+  status: string
+}
+const { data: ordersData } = await useAsyncData(
+  'orderm-orders-filter',
+  () => $fetch<{ ok: boolean; data: OrderOption[] }>(`${apiBase}/api/orderm/orders`, {
+    credentials: 'include',
+  }),
+  { server: false, default: () => ({ ok: true, data: [] as OrderOption[] }) },
+)
+const orderOptions = computed<OrderOption[]>(() => ordersData.value?.data ?? [])
+
 // 현재 주문 컨텍스트. 신규 도서는 이 주문번호에 속한다(drawer 에는 표시만).
 const contextOrderNo = computed(() => {
   const n = Number(appliedOrderNo.value)
@@ -466,6 +516,90 @@ async function openAladin() {
     message.value = err?.data?.message || '알라딘 상품정보를 찾을 수 없습니다.'
   } finally {
     aladinLoading.value = false
+  }
+}
+
+// ── itemId 로 도서 조회 ───────────────────────────────────────
+// itemId 검색 버튼: itemId 가 있으면 Reading.books 에서 그 itemId 의 도서를
+// 찾아 폼을 채우고, 비어 있으면 기존처럼 ISBN → itemId 를 조회한다.
+const itemIdLoading = ref(false)
+async function onItemIdSearch() {
+  if (form.item_id.trim()) return pickItemIdDirect()
+  if (form.isbn.trim()) return lookupItemId()
+}
+
+// itemId 로 Reading.books 조회 → 결과가 유일하므로 바로 폼을 채운다.
+async function pickItemIdDirect() {
+  const q = (form.item_id || '').trim()
+  if (!q || itemIdLoading.value) return
+  itemIdLoading.value = true
+  message.value = ''
+  isError.value = false
+  try {
+    const res = await $fetch<{ ok: boolean; data: BookHit[] }>(
+      `${apiBase}/api/orderm/books?item_id=${encodeURIComponent(q)}`,
+      { credentials: 'include' },
+    )
+    const rows = res.data ?? []
+    if (!rows.length) {
+      isError.value = true
+      message.value = `itemId ${q} 의 도서를 도서 DB에서 찾을 수 없습니다.`
+      return
+    }
+    pickBook(rows[0])
+  } catch (err: any) {
+    isError.value = true
+    message.value = err?.data?.message || err?.message || 'itemId 조회에 실패했습니다.'
+  } finally {
+    itemIdLoading.value = false
+  }
+}
+
+// itemId 가 비어 있을 때: ISBN 으로 알라딘 itemID 를 조회해 itemId 필드를 채운다.
+async function lookupItemId() {
+  const isbn = (form.isbn || '').trim()
+  if (!isbn || itemIdLoading.value) return
+  itemIdLoading.value = true
+  message.value = ''
+  isError.value = false
+  try {
+    const info = await $fetch<{ itemID?: string }>(
+      `${apiBase}/api/aladin/${encodeURIComponent(isbn)}`,
+      { credentials: 'include' },
+    )
+    const itemId = String(info?.itemID || '').trim()
+    if (!itemId) throw new Error('itemID 를 찾을 수 없습니다.')
+    form.item_id = itemId
+  } catch (err: any) {
+    isError.value = true
+    message.value = err?.data?.message || err?.message || 'itemId 조회에 실패했습니다.'
+  } finally {
+    itemIdLoading.value = false
+  }
+}
+
+// ── crawling (알라딘 상세 재수집) ────────────────────────────
+// form.item_id 로 CrawlingBooks 의 detailByItemid 를 실행해
+// 알라딘 상세를 Reading.books 에 (재)저장한다.
+const crawlLoading = ref(false)
+async function runCrawl() {
+  const itemId = (form.item_id || '').trim()
+  if (!itemId || crawlLoading.value) return
+  crawlLoading.value = true
+  message.value = ''
+  isError.value = false
+  try {
+    await $fetch(`${apiBase}/api/crawl/detail`, {
+      method: 'POST',
+      credentials: 'include',
+      body: { itemId },
+    })
+    message.value = `crawling 완료 (itemId ${itemId})`
+  } catch (err: any) {
+    isError.value = true
+    message.value = err?.data?.message || err?.message || 'crawling 에 실패했습니다.'
+  } finally {
+    crawlLoading.value = false
   }
 }
 
@@ -607,6 +741,8 @@ const STATUS_CLASS: Record<BookStatus, string> = {
   발주: 'is-purchase',
   입고: 'is-instock',
   출고: 'is-shipped',
+  계산서발행: 'is-invoice',
+  입금: 'is-paid',
 }
 function statusClass(s: BookStatus) {
   return STATUS_CLASS[s] ?? ''
@@ -640,7 +776,7 @@ const isError = ref(false)
 type FormShape = Omit<OrderListItem, 'no' | 'createdAt' | 'updatedAt'>
 function blankForm(): FormShape {
   return {
-    orderNo: 0, isbn: '', title: '', subtitle: '', publisher: '', author: '',
+    orderNo: 0, isbn: '', item_id: '', title: '', subtitle: '', publisher: '', author: '',
     qty: 1, warehousing_count: 0, delivery_count: 0, price: 0, dc_price: 0,
     status: '견적요청', supplier: '', order_price: 0,
     order_date: '', warehousing_date: '', delivery_date: '', note: '',
@@ -658,7 +794,7 @@ const dcRate = computed(() => {
 
 function resetForm(src?: OrderListItem) {
   Object.assign(form, blankForm(), src ? {
-    orderNo: src.orderNo, isbn: src.isbn, title: src.title, subtitle: src.subtitle, publisher: src.publisher, author: src.author,
+    orderNo: src.orderNo, isbn: src.isbn, item_id: src.item_id ?? '', title: src.title, subtitle: src.subtitle, publisher: src.publisher, author: src.author,
     qty: src.qty, warehousing_count: src.warehousing_count, delivery_count: src.delivery_count ?? 0,
     price: src.price, dc_price: src.dc_price,
     status: src.status, supplier: src.supplier, order_price: src.order_price,
@@ -704,6 +840,7 @@ function closeEditor() {
 // ── 도서 검색 (Reading.books) ─────────────────────────────────
 type BookHit = {
   isbn: string
+  item_id?: string
   title: string
   subtitle?: string
   series_name?: string
@@ -774,6 +911,7 @@ function pickBook(b: BookHit) {
   // 헤더 검색 등 drawer 가 닫힌 상태에서 고르면 신규 도서 drawer 를 연다.
   if (!isEditorOpen.value) openCreate()
   form.isbn = b.isbn ?? ''
+  form.item_id = b.item_id ?? ''
   form.title = b.title ?? ''
   form.subtitle = b.subtitle ?? ''
   form.author = b.author ?? ''
@@ -917,6 +1055,20 @@ async function remove() {
 }
 .ol-orderno-field > span {
   font-size: 11px;
+}
+/* 주문 선택 드롭다운 — 주문번호 필드와 같은 라벨 배치 */
+.ol-order-select-field {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  color: var(--theme-fg-dim);
+}
+.ol-order-select-field > span {
+  font-size: 11px;
+}
+.ol-order-select {
+  max-width: 260px;
 }
 /* 상태 select 는 전역 .theme-backend-contents-filters select 스타일을 쓰되,
    주문번호 입력과 높이·모서리를 맞춘다. */
@@ -1112,6 +1264,8 @@ async function remove() {
 .book-status.is-purchase { background: #fef3c7; color: #92400e; border-color: #fde68a; }
 .book-status.is-instock  { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
 .book-status.is-shipped  { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
+.book-status.is-invoice  { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
+.book-status.is-paid     { background: #ecfdf5; color: #047857; border-color: #6ee7b7; }
 
 /* drawer */
 .theme-backend-user-drawer {
@@ -1201,9 +1355,13 @@ async function remove() {
   color: var(--theme-fg-faint);
   cursor: pointer;
 }
-.book-pick-btn:hover {
+.book-pick-btn:hover:not(:disabled) {
   background: var(--theme-bg-sunken);
   color: var(--theme-fg);
+}
+.book-pick-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* 도서 검색 모달 */

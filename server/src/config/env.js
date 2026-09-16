@@ -51,6 +51,12 @@ const mongoUri =
     mongoQueryString ? `?${mongoQueryString}` : ''
   }`;
 
+// 도서 상세 크롤러(CrawlingBooks) 프로젝트 경로. 주문도서 drawer 의 "crawling" 버튼이
+// 이 디렉터리에서 `node src/index.js detailByItemid <itemId>` 를 실행한다.
+// 기본값은 형제 폴더(…/Contents/CrawlingBooks). 배포 환경에서는 CRAWLINGBOOKS_DIR 로 덮어쓴다.
+const crawlingBooksDir =
+  process.env.CRAWLINGBOOKS_DIR || path.resolve(__dirname, '../../../../CrawlingBooks');
+
 const jwtAccessSecret = process.env.JWT_ACCESS_SECRET || 'dev-access-secret';
 const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret';
 const kakaoClientId = process.env.KAKAO_ID || process.env.KAKAO_CLIENT_ID || '';
@@ -65,6 +71,7 @@ export const env = {
   booksCollection,
   dreamerDbName,
   cybOrderCollection,
+  crawlingBooksDir,
   mongoCollectionBibleEdit,
   mongoCollectionVerseTopics,
   jwtAccessSecret,

@@ -11,6 +11,7 @@ import bookRouter from './modules/orderm/book.routes.js';
 import dreamerRouter from './modules/orderm/dreamer.routes.js';
 import fileRouter from './modules/orderm/file.routes.js';
 import aladinRouter from './modules/aladin/aladin.routes.js';
+import crawlRouter from './modules/crawl/crawl.routes.js';
 import cmsHandler from './modules/cms/index.mjs';
 import { attachCmsSession } from './modules/cms/session-bridge.js';
 import { getConfig } from './modules/cms/config.mjs';
@@ -65,6 +66,7 @@ app.use('/api/orderm/books', bookRouter);
 app.use('/api/orderm/dreamer', dreamerRouter);
 app.use('/api/file', fileRouter);
 app.use('/api/aladin', aladinRouter);
+app.use('/api/crawl', crawlRouter);
 
 app.use((error, req, res, next) => {
   console.error(error);

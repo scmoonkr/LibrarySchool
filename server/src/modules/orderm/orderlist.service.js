@@ -4,6 +4,7 @@ import {
   bulkSetShippingByOrderNo,
   bulkSetStatusByOrderNo,
   bulkSetWarehousing,
+  listPendingPurchase,
   replaceOrderListByOrderNo,
   deleteByKey,
   findByKey,
@@ -15,7 +16,7 @@ import {
 } from './orderlist.repository.js';
 
 // 주문상태: 견적요청(기본) → 주문 → 발주 → 입고 → 출고
-const STATUSES = ['견적요청', '주문', '발주', '입고', '출고'];
+const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금'];
 const DEFAULT_STATUS = '견적요청';
 
 function appError(message, statusCode = 400) {
@@ -44,6 +45,7 @@ function normalizeFields(body = {}) {
 
   return {
     isbn: str(body.isbn, 40),
+    item_id: str(body.item_id, 40),         // 알라딘 itemId (crawling 용)
     title,                                  // 서명
     subtitle: str(body.subtitle, 300),      // 부제
     publisher: str(body.publisher, 120),    // 출판사
@@ -67,6 +69,11 @@ export async function getOrderList(query = {}) {
   return listOrderList({ orderNo: query.orderNo });
 }
 
+// 처리현황: 발주(거래중)·미입고 도서 목록.
+export async function getPendingPurchase() {
+  return listPendingPurchase();
+}
+
 // 정가조회 → 주문저장: 여러 행을 order_list 로 일괄 upsert((orderNo, no) 기준).
 export async function saveOrderListBulk({ orderNo, items } = {}) {
   const on = Number(orderNo);
@@ -81,6 +88,7 @@ export async function saveOrderListBulk({ orderNo, items } = {}) {
       orderNo: on,
       no: Number(it.no) || (idx + 1) * 10,
       isbn: str(it.isbn),
+      item_id: str(it.item_id),
       title: str(it.title),
       subtitle: str(it.subtitle),
       publisher: str(it.publisher),
