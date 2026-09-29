@@ -73,6 +73,7 @@
                 <th class="col-num">수량</th>
                 <th class="col-num">정가</th>
                 <th class="cp-edit-col"></th>
+                <th class="cp-cid-col">cid</th>
               </tr>
             </thead>
             <tbody>
@@ -117,6 +118,21 @@
                     <i class="fa-solid fa-pen"></i>
                   </button>
                 </td>
+                <td class="cp-cid-col">
+                  <span v-if="typeof item.cid === 'number'" class="mono cp-cid">{{ item.cid }}</span>
+                  <button
+                    v-else-if="item.cid === null && item.isbn"
+                    type="button"
+                    class="cp-edit-btn cp-cid-add"
+                    :disabled="contentsSaving"
+                    title="Dreamer.contents 에 저장"
+                    aria-label="Dreamer.contents 저장"
+                    @click.stop="addToContents(item)"
+                  >
+                    <i class="fa-solid fa-plus"></i>
+                  </button>
+                  <span v-else>-</span>
+                </td>
               </tr>
             </tbody>
             <tfoot>
@@ -124,6 +140,7 @@
                 <td colspan="5" class="cp-foot-label">합계</td>
                 <td class="col-num mono">{{ totalQty }}</td>
                 <td class="col-num mono">{{ formatPrice(totalAmount) }}</td>
+                <td></td>
                 <td></td>
               </tr>
             </tfoot>
@@ -239,6 +256,8 @@ type Row = {
   m_author?: string
   _dup?: boolean
   _nomatch?: boolean
+  // Dreamer.contents 조회 결과: number=cid 있음, null=조회했으나 없음, undefined=미조회
+  cid?: number | null
 }
 type BookHit = {
   isbn: string
@@ -384,10 +403,56 @@ async function runLookup(mode: 'title' | 'title_publisher') {
       }
     })
     notice.value = `${hit}/${rows.value.length}건 매칭` + (hit < rows.value.length ? ' (미매칭 행은 붉게 표시)' : '')
+    // 매칭된 ISBN 으로 Dreamer.contents 의 cid 를 함께 조회한다.
+    await fetchContentsCids()
   } catch {
     notice.value = '정가 조회에 실패했습니다.'
   } finally {
     busy.value = false
+  }
+}
+
+// 각 행의 ISBN 으로 Dreamer.contents 의 cid 를 조회해 채운다.
+// cid: number=있음, null=조회했으나 없음(추가 아이콘), undefined=ISBN 없음/미조회.
+async function fetchContentsCids() {
+  const isbns = rows.value.map((r) => (r.isbn || '').trim()).filter(Boolean)
+  if (!isbns.length) return
+  try {
+    const res = await $fetch<{ ok: boolean; data: Record<string, number> }>(
+      `${apiBase}/api/orderm/dreamer/contents-cid`,
+      { method: 'POST', credentials: 'include', body: { isbns } },
+    )
+    const map = res.data ?? {}
+    rows.value = rows.value.map((r) => {
+      const key = (r.isbn || '').trim()
+      if (!key) return { ...r, cid: undefined }
+      return { ...r, cid: map[key] != null ? map[key] : null }
+    })
+  } catch {
+    // cid 조회 실패는 정가조회 결과에 영향을 주지 않으므로 무시한다.
+  }
+}
+
+// '+' 클릭 시 모달 없이 Dreamer.contents 에 바로 저장한다. ISBN 중복 확인은 서버가 한다.
+// 성공하면 그 행의 cid 를 채워 '+' 가 cid 표시로 바뀐다.
+const contentsSaving = ref(false)
+async function addToContents(item: Row) {
+  const isbn = (item.isbn || '').trim()
+  if (!isbn || contentsSaving.value) return
+  contentsSaving.value = true
+  notice.value = ''
+  try {
+    const res = await $fetch<{ ok: boolean; data: { cid: number } }>(
+      `${apiBase}/api/orderm/dreamer/contents`,
+      { method: 'POST', credentials: 'include', body: { isbn } },
+    )
+    const cid = res.data?.cid
+    rows.value = rows.value.map((r) => ((r.isbn || '').trim() === isbn ? { ...r, cid } : r))
+    notice.value = `Dreamer.contents 등록 완료 (cid ${cid})`
+  } catch (err: any) {
+    notice.value = err?.data?.message || 'Dreamer.contents 등록에 실패했습니다.'
+  } finally {
+    contentsSaving.value = false
   }
 }
 
@@ -795,6 +860,18 @@ async function dreamer() {
   width: 76px;
   text-align: center;
   white-space: nowrap;
+}
+.cp-cid-col {
+  width: 64px;
+  text-align: center;
+  white-space: nowrap;
+}
+.cp-cid {
+  font-size: 13px;
+  color: var(--theme-fg-dim);
+}
+.cp-cid-add {
+  color: var(--theme-accent);
 }
 .cp-edit-btn {
   border: none;

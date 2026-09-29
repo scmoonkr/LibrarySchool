@@ -60,6 +60,7 @@
             >{{ renumbering ? '설정 중...' : '번호설정' }}</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!selectedKeys.size" @click="openPurchase">발주</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!contextOrderNo" @click="isProgressOpen = true">처리현황</button>
+            <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!contextOrderNo || dreamering || !items.length" @click="sendDreamer">{{ dreamering ? '전송 중...' : 'Dreamer' }}</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!selectedKeys.size" @click="openShip">출고</button>
             <button type="button" class="theme-form-submit" :disabled="!contextOrderNo" @click="openCreate">도서추가</button>
           </div>
@@ -84,6 +85,7 @@
                 <th>상태</th>
                 <th>발주처/발주일</th>
                 <th>입고일/출고일</th>
+                <th class="ol-cid-col">cid</th>
               </tr>
             </thead>
             <tbody>
@@ -113,6 +115,21 @@
                 <td class="mono">
                   <span :class="{ 'ol-future-date': isFutureDate(item.warehousing_date) }">{{ item.warehousing_date || '-' }}</span>
                   <div v-if="item.delivery_date" class="ol-subtitle">{{ item.delivery_date }}</div>
+                </td>
+                <td class="ol-cid-col" @click.stop>
+                  <span v-if="typeof cidOf(item) === 'number'" class="mono ol-cid">{{ cidOf(item) }}</span>
+                  <button
+                    v-else-if="cidOf(item) === null && item.isbn"
+                    type="button"
+                    class="ol-cid-add"
+                    :disabled="contentsSaving"
+                    title="Dreamer.contents 에 저장"
+                    aria-label="Dreamer.contents 저장"
+                    @click.stop="openContents(item)"
+                  >
+                    <i class="fa-solid fa-plus"></i>
+                  </button>
+                  <span v-else>-</span>
                 </td>
               </tr>
             </tbody>
@@ -719,6 +736,105 @@ const { data, pending, refresh } = await useAsyncData(
 )
 const items = computed<OrderListItem[]>(() => data.value?.data ?? [])
 
+// ── Dreamer.contents cid 조회 & 등록 (정가조회 화면과 동일) ────
+// isbn → cid 맵. number=있음, null=조회했으나 없음('+' 표시), undefined=미조회.
+const cidMap = ref<Record<string, number | null>>({})
+function cidOf(item: OrderListItem): number | null | undefined {
+  const key = (item.isbn || '').trim()
+  if (!key) return undefined
+  return cidMap.value[key]
+}
+async function fetchContentsCids() {
+  const isbns = [...new Set(items.value.map((it) => (it.isbn || '').trim()).filter(Boolean))]
+  if (!isbns.length) {
+    cidMap.value = {}
+    return
+  }
+  try {
+    const res = await $fetch<{ ok: boolean; data: Record<string, number> }>(
+      `${apiBase}/api/orderm/dreamer/contents-cid`,
+      { method: 'POST', credentials: 'include', body: { isbns } },
+    )
+    const map = res.data ?? {}
+    const next: Record<string, number | null> = {}
+    for (const isbn of isbns) next[isbn] = map[isbn] != null ? map[isbn] : null
+    cidMap.value = next
+  } catch {
+    // cid 조회 실패는 목록 표시에 영향을 주지 않으므로 무시한다.
+  }
+}
+// 목록이 로드/변경되면 cid 를 다시 조회한다.
+watch(items, () => { fetchContentsCids() }, { immediate: true })
+
+// '+' 클릭 시 모달 없이 Dreamer.contents 에 바로 저장한다. ISBN 중복 확인은 서버가 한다.
+// 성공하면 그 isbn 의 cid 를 채워 '+' 가 cid 표시로 바뀐다.
+const contentsSaving = ref(false)
+async function openContents(item: OrderListItem) {
+  const isbn = (item.isbn || '').trim()
+  if (!isbn || contentsSaving.value) return
+  contentsSaving.value = true
+  try {
+    const res = await $fetch<{ ok: boolean; data: { cid: number } }>(
+      `${apiBase}/api/orderm/dreamer/contents`,
+      { method: 'POST', credentials: 'include', body: { isbn } },
+    )
+    const cid = res.data?.cid
+    cidMap.value = { ...cidMap.value, [isbn]: cid != null ? cid : null }
+  } catch (err: any) {
+    window.alert(err?.data?.message || 'Dreamer.contents 등록에 실패했습니다.')
+  } finally {
+    contentsSaving.value = false
+  }
+}
+
+// 이 주문의 주문도서 전체를 Dreamer(cybOrder)로 전송. (checkPrice 의 Dreamer 와 동일)
+const dreamering = ref(false)
+async function sendDreamer() {
+  const on = contextOrderNo.value
+  if (!on || dreamering.value) return
+  const list = items.value
+  if (!list.length) {
+    window.alert('전송할 도서가 없습니다.')
+    return
+  }
+
+  // Dreamer(cybOrder)에 기록할 주문번호를 입력받는다. (기본값 = 현재 주문번호)
+  const input = window.prompt(
+    `Dreamer 주문번호를 입력하세요.\n주문 #${on} 의 ${list.length}건을 Dreamer(cybOrder)로 전송합니다.`,
+    String(on),
+  )
+  if (input == null) return // 취소
+  const dreamerOrderNo = Number(String(input).trim())
+  if (!(dreamerOrderNo > 0)) {
+    window.alert('Dreamer 주문번호는 1 이상의 숫자여야 합니다.')
+    return
+  }
+
+  dreamering.value = true
+  try {
+    const rows = list.map((it) => ({
+      no: it.no,
+      isbn: it.isbn,
+      title: it.title,
+      subtitle: it.subtitle,
+      publisher: it.publisher,
+      author: it.author,
+      qty: it.qty,
+      price: it.price,
+    }))
+    const res = await $fetch<{ ok: boolean; data: { count: number; orderNo: number } }>(`${apiBase}/api/orderm/dreamer`, {
+      method: 'POST',
+      credentials: 'include',
+      body: { orderNo: on, dreamerOrderNo, rows },
+    })
+    window.alert(`Dreamer 전송 완료 (주문번호 ${res.data?.orderNo ?? dreamerOrderNo}, ${res.data?.count ?? 0}건)`)
+  } catch (err: any) {
+    window.alert(err?.data?.message || 'Dreamer 전송에 실패했습니다.')
+  } finally {
+    dreamering.value = false
+  }
+}
+
 const filtered = computed(() => {
   const st = statusFilter.value
   if (!st) return items.value
@@ -1266,6 +1382,32 @@ async function remove() {
 .book-status.is-shipped  { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
 .book-status.is-invoice  { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
 .book-status.is-paid     { background: #ecfdf5; color: #047857; border-color: #6ee7b7; }
+
+/* Dreamer.contents cid 열 */
+.ol-cid-col {
+  width: 56px;
+  text-align: center;
+  white-space: nowrap;
+}
+.ol-cid {
+  font-size: 13px;
+  color: var(--theme-fg-dim);
+}
+.ol-cid-add {
+  border: none;
+  background: transparent;
+  color: var(--theme-accent);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.ol-cid-add:hover {
+  background: var(--theme-bg-sunken);
+}
+.ol-cid-add:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 
 /* drawer */
 .theme-backend-user-drawer {
