@@ -45,8 +45,8 @@
                 <option value="">전체 상태</option>
                 <option v-for="s in STATUSES" :key="s" :value="s">{{ s }}</option>
               </select>
-              <span v-if="contextOrderNo" class="ol-filter-sum" title="주문수량 / 입고수량 / 출고수량">
-                ({{ totals.qty }} / {{ totals.warehousing }} / {{ totals.delivery }})
+              <span v-if="contextOrderNo" class="ol-filter-sum" title="주문수량 / 입고수량 / 출고수량, 할인가 합계">
+                ({{ totals.qty }} / {{ totals.warehousing }} / {{ totals.delivery }}, {{ formatPrice(totals.dcAmount) }})
               </span>
             </div>
           </div>
@@ -843,12 +843,18 @@ const filtered = computed(() => {
 
 // 필터 줄에 표기하는 수량 합계. 목록에 보이는 것(=상태 필터 적용 후) 기준이다.
 const totals = computed(() => filtered.value.reduce(
-  (acc, it) => ({
-    qty: acc.qty + (Number(it.qty) || 0),
-    warehousing: acc.warehousing + (Number(it.warehousing_count) || 0),
-    delivery: acc.delivery + (Number(it.delivery_count) || 0),
-  }),
-  { qty: 0, warehousing: 0, delivery: 0 },
+  (acc, it) => {
+    const qty = Number(it.qty) || 0
+    // 할인가가 비어 있으면 정가로 판다는 뜻이라 정가를 쓴다. (표의 할인가 열과 같은 기준)
+    const dc = Number(it.dc_price) || Number(it.price) || 0
+    return {
+      qty: acc.qty + qty,
+      warehousing: acc.warehousing + (Number(it.warehousing_count) || 0),
+      delivery: acc.delivery + (Number(it.delivery_count) || 0),
+      dcAmount: acc.dcAmount + dc * qty,
+    }
+  },
+  { qty: 0, warehousing: 0, delivery: 0, dcAmount: 0 },
 ))
 
 const STATUS_CLASS: Record<BookStatus, string> = {
