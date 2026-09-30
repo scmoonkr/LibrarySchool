@@ -168,9 +168,11 @@ export async function buildQuoteData(orderNo, options = {}) {
   const total = rows.reduce((sum, r) => sum + r.amount, 0);
   const compareTotal = rows.reduce((sum, r) => sum + r.compareAmount, 0);
 
+  // 견적서/비교견적서는 견적요청일자, 거래명세서는 출고일자를 문서 일자로 쓴다.
+  // 주문일자로 대신 채우면 견적요청일이 아닌 날짜가 견적서에 찍히므로 쓰지 않는다.
   const date = options.dateSource === 'delivery'
     ? (order.delivery_date || todayStr())
-    : (order.quote_date || order.order_date || todayStr());
+    : (order.quote_date || todayStr());
 
   return {
     orderNo: on,
