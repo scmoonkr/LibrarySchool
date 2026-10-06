@@ -199,10 +199,16 @@
             <span>서명</span>
             <input v-model="editForm.title" maxlength="300" />
           </label>
-          <label class="theme-form-field">
-            <span>출판사</span>
-            <input v-model="editForm.publisher" maxlength="120" />
-          </label>
+          <div class="cp-edit-row2">
+            <label class="theme-form-field">
+              <span>출판사</span>
+              <input v-model="editForm.publisher" maxlength="120" />
+            </label>
+            <label class="theme-form-field">
+              <span>출간일</span>
+              <input v-model="editForm.pub_date" name="pub_date" type="date" />
+            </label>
+          </div>
           <label class="theme-form-field">
             <span>저자</span>
             <input v-model="editForm.author" maxlength="120" />
@@ -217,12 +223,25 @@
               <input v-model.number="editForm.price" type="number" min="0" />
             </label>
           </div>
-          <label class="theme-form-field">
-            <span>ISBN</span>
-            <input v-model="editForm.isbn" maxlength="40" />
-          </label>
+          <div class="cp-edit-row2">
+            <label class="theme-form-field">
+              <span>ISBN</span>
+              <input v-model="editForm.isbn" maxlength="40" />
+            </label>
+            <label class="theme-form-field">
+              <span>itemId</span>
+              <input v-model="editForm.item_id" maxlength="40" placeholder="알라딘 itemId" />
+            </label>
+          </div>
           <div class="cp-edit-actions">
             <button type="button" class="theme-form-submit theme-form-submit-warning cp-edit-del" @click="deleteEditRow">삭제</button>
+            <button
+              type="button"
+              class="theme-form-submit theme-form-submit-secondary-soft"
+              :disabled="!editForm.isbn.trim() || registering"
+              title="Reading.books 에 이 ISBN 이 없으면 신규 등록"
+              @click="registerBook"
+            >{{ registering ? '등록 중...' : '도서DB 등록' }}</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="closeEdit">취소</button>
             <button type="submit" class="theme-form-submit">저장</button>
           </div>
@@ -243,9 +262,11 @@ definePageMeta({ layout: 'insure' })
 type Row = {
   no: number
   isbn: string
+  item_id?: string
   title: string
   subtitle: string
   publisher: string
+  pub_date?: string
   author: string
   qty: number
   price: number
@@ -261,11 +282,13 @@ type Row = {
 }
 type BookHit = {
   isbn: string
+  item_id?: string
   title: string
   subtitle?: string
   series_name?: string
   author: string
   publisher: string
+  pub_date?: string
   price: number
   dc_price?: number
 }
@@ -505,6 +528,8 @@ function pickBook(b: BookHit) {
   rows.value[i] = {
     ...rows.value[i],
     isbn: b.isbn || rows.value[i].isbn,
+    item_id: b.item_id || rows.value[i].item_id || '',
+    pub_date: b.pub_date || rows.value[i].pub_date || '',
     subtitle: b.subtitle || rows.value[i].subtitle,
     price: Number(b.price) || rows.value[i].price,
     sale_price: Number(b.dc_price) || 0,
@@ -552,17 +577,20 @@ async function copyNonTenPercentCmds() {
 // ── 편집 (서명 / 출판사 / 수량 / 정가 / ISBN) ─────────────────
 const isEditOpen = ref(false)
 const editRow = ref<number | null>(null)
-const editForm = reactive({ title: '', publisher: '', author: '', qty: 0, price: 0, isbn: '' })
+const editForm = reactive({ title: '', publisher: '', pub_date: '', author: '', qty: 0, price: 0, isbn: '', item_id: '' })
+const registering = ref(false)
 
 function openEdit(idx: number) {
   editRow.value = idx
   const r = rows.value[idx]
   editForm.title = r.title
   editForm.publisher = r.publisher
+  editForm.pub_date = r.pub_date ?? ''
   editForm.author = r.author
   editForm.qty = r.qty
   editForm.price = r.price
   editForm.isbn = r.isbn
+  editForm.item_id = r.item_id ?? ''
   isEditOpen.value = true
 }
 function closeEdit() {
@@ -575,12 +603,46 @@ function saveEdit() {
     ...rows.value[i],
     title: editForm.title.trim(),
     publisher: editForm.publisher.trim(),
+    pub_date: editForm.pub_date.trim(),
     author: editForm.author.trim(),
     qty: Number(editForm.qty) || 0,
     price: Number(editForm.price) || 0,
     isbn: editForm.isbn.trim(),
+    item_id: editForm.item_id.trim(),
   }
   isEditOpen.value = false
+}
+
+// Reading.books 에 이 ISBN 이 없을 때만 신규 등록(편집 모달의 입력값 기준).
+async function registerBook() {
+  const isbn = editForm.isbn.trim()
+  if (!isbn || registering.value) return
+  registering.value = true
+  try {
+    const res = await $fetch<{ ok: boolean; data: { inserted: boolean; reason?: string } }>(
+      `${apiBase}/api/orderm/books`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        body: {
+          item_id: editForm.item_id.trim(),
+          isbn,
+          title: editForm.title.trim(),
+          author: editForm.author.trim(),
+          publisher: editForm.publisher.trim(),
+          pub_date: editForm.pub_date.trim(),
+          price: Number(editForm.price) || 0,
+        },
+      },
+    )
+    notice.value = res.data?.inserted
+      ? `Reading.books 에 등록했습니다. (ISBN ${isbn})`
+      : 'Reading.books 에 이미 있는 ISBN 입니다.'
+  } catch (err: any) {
+    notice.value = err?.data?.message || 'Reading.books 등록에 실패했습니다.'
+  } finally {
+    registering.value = false
+  }
 }
 function deleteEditRow() {
   const i = editRow.value
@@ -593,7 +655,7 @@ function deleteEditRow() {
 // 새 빈 행 추가(수량 기본 1) 후 편집 모달을 연다.
 function addRow() {
   const nextNo = rows.value.length ? Math.max(...rows.value.map((r) => r.no || 0)) + 10 : 10
-  rows.value.push({ no: nextNo, isbn: '', title: '', subtitle: '', publisher: '', author: '', qty: 1, price: 0, sale_price: 0 })
+  rows.value.push({ no: nextNo, isbn: '', item_id: '', title: '', subtitle: '', publisher: '', pub_date: '', author: '', qty: 1, price: 0, sale_price: 0 })
   openEdit(rows.value.length - 1)
 }
 
@@ -669,9 +731,11 @@ async function saveToOrderList() {
     const items = list.map((r) => ({
       no: r.no,
       isbn: r.isbn,
+      item_id: r.item_id || '',
       title: r.title,
       subtitle: r.subtitle,
       publisher: r.publisher || r.m_publisher || '',
+      pub_date: r.pub_date || '',
       author: r.author || r.m_author || '',
       qty: r.qty,
       price: r.price,

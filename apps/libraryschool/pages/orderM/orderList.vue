@@ -212,14 +212,18 @@
               <input v-model="form.author" name="author" maxlength="120" />
             </label>
 
-            <!-- 부제 / 출판사 (2/3, 1/3) -->
-            <label class="theme-form-field c4">
+            <!-- 부제 / 출판사 / 출간일 (1/2, 1/4, 1/4) -->
+            <label class="theme-form-field c3">
               <span>부제</span>
               <input v-model="form.subtitle" name="subtitle" maxlength="300" />
             </label>
-            <label class="theme-form-field c2">
+            <label class="theme-form-field c-quarter">
               <span>출판사</span>
               <input v-model="form.publisher" name="publisher" maxlength="120" />
+            </label>
+            <label class="theme-form-field c-quarter">
+              <span>출간일</span>
+              <input v-model="form.pub_date" name="pub_date" type="date" />
             </label>
 
             <!-- 발주처 / 수량 / 입고수량 / 출고수량 (각 1/4) -->
@@ -449,6 +453,7 @@ type OrderListItem = {
   title: string
   subtitle: string
   publisher: string
+  pub_date: string
   author: string
   qty: number
   warehousing_count: number
@@ -921,7 +926,7 @@ const isError = ref(false)
 type FormShape = Omit<OrderListItem, 'no' | 'createdAt' | 'updatedAt'>
 function blankForm(): FormShape {
   return {
-    orderNo: 0, isbn: '', item_id: '', title: '', subtitle: '', publisher: '', author: '',
+    orderNo: 0, isbn: '', item_id: '', title: '', subtitle: '', publisher: '', pub_date: '', author: '',
     qty: 1, warehousing_count: 0, delivery_count: 0, price: 0, dc_price: 0,
     status: '견적요청', supplier: '', order_price: 0,
     order_date: '', warehousing_date: '', delivery_date: '', note: '',
@@ -939,7 +944,7 @@ const dcRate = computed(() => {
 
 function resetForm(src?: OrderListItem) {
   Object.assign(form, blankForm(), src ? {
-    orderNo: src.orderNo, isbn: src.isbn, item_id: src.item_id ?? '', title: src.title, subtitle: src.subtitle, publisher: src.publisher, author: src.author,
+    orderNo: src.orderNo, isbn: src.isbn, item_id: src.item_id ?? '', title: src.title, subtitle: src.subtitle, publisher: src.publisher, pub_date: src.pub_date ?? '', author: src.author,
     qty: src.qty, warehousing_count: src.warehousing_count, delivery_count: src.delivery_count ?? 0,
     price: src.price, dc_price: src.dc_price,
     status: src.status, supplier: src.supplier, order_price: src.order_price,
@@ -999,6 +1004,7 @@ type BookHit = {
   series_name?: string
   author: string
   publisher: string
+  pub_date?: string
   price: number
   dc_price?: number
 }
@@ -1069,6 +1075,7 @@ function pickBook(b: BookHit) {
   form.subtitle = b.subtitle ?? ''
   form.author = b.author ?? ''
   form.publisher = b.publisher ?? ''
+  form.pub_date = b.pub_date ?? ''
   form.price = Number(b.price) || 0
   form.dc_price = Number(b.dc_price) || 0
   isbnError.value = ''

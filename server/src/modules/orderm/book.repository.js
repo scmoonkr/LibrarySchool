@@ -15,6 +15,7 @@ const PROJECTION = {
   series_name: 1,
   author: 1,
   publisher: 1,
+  pub_date: 1,
   price: 1,
   sale_price: 1,
 };
@@ -25,6 +26,30 @@ function escapeRegex(value) {
 
 function booksCollection() {
   return getReadingDatabase().collection(env.booksCollection);
+}
+
+// Reading.books 에 해당 ISBN 이 없을 때만 최소 정보로 신규 등록한다.
+// (주문도서 입력값 기반. 이미 있으면 건너뛴다.)
+export async function insertBookIfMissing(book = {}) {
+  const isbn = String(book.isbn ?? '').trim();
+  if (!isbn) return { inserted: false, reason: 'no_isbn' };
+  const col = booksCollection();
+  const existing = await col.findOne({ isbn }, { projection: { _id: 1 } });
+  if (existing) return { inserted: false, reason: 'exists' };
+  await col.insertOne({
+    item_id: String(book.item_id ?? '').trim(),
+    isbn,
+    title: String(book.title ?? '').trim(),
+    subtitle: String(book.subtitle ?? '').trim(),
+    author: String(book.author ?? '').trim(),
+    publisher: String(book.publisher ?? '').trim(),
+    pub_date: String(book.pub_date ?? '').trim(),
+    price: Number(book.price) || 0,
+    sale_price: Number(book.dc_price) || 0,
+    source: 'orderm',
+    created_at: new Date(),
+  });
+  return { inserted: true };
 }
 
 // item_id 정확 검색 (item_id 유니크 인덱스 사용 → 최대 1건).

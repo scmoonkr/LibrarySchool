@@ -14,6 +14,7 @@ import {
   renumberByOrderNo,
   updateByKey,
 } from './orderlist.repository.js';
+import { insertBookIfMissing } from './book.repository.js';
 
 // 주문상태: 견적요청(기본) → 주문 → 발주 → 입고 → 출고
 const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금'];
@@ -49,6 +50,7 @@ function normalizeFields(body = {}) {
     title,                                  // 서명
     subtitle: str(body.subtitle, 300),      // 부제
     publisher: str(body.publisher, 120),    // 출판사
+    pub_date: str(body.pub_date, 20),       // 출간일 (YYYY-MM-DD)
     author: str(body.author, 120),          // 저자
     qty: num(body.qty),                     // 수량
     warehousing_count: num(body.warehousing_count), // 입고수량
@@ -92,6 +94,7 @@ export async function saveOrderListBulk({ orderNo, items } = {}) {
       title: str(it.title),
       subtitle: str(it.subtitle),
       publisher: str(it.publisher),
+      pub_date: str(it.pub_date),
       author: str(it.author),
       qty: num(it.qty),
       warehousing_count: num(it.warehousing_count),
@@ -164,6 +167,26 @@ export async function saveWarehousing({ orderNo, items } = {}) {
   return { ok: true, modified };
 }
 
+// 주문도서 저장 시, 그 도서가 Reading.books 에 없으면(ISBN 기준) 신규 등록한다.
+// 외부 카탈로그(Reading.books) 쓰기 실패가 주문도서 저장을 막지 않도록 예외는 삼킨다.
+async function catalogBookIfMissing(fields) {
+  try {
+    await insertBookIfMissing({
+      item_id: fields.item_id,
+      isbn: fields.isbn,
+      title: fields.title,
+      subtitle: fields.subtitle,
+      author: fields.author,
+      publisher: fields.publisher,
+      pub_date: fields.pub_date,
+      price: fields.price,
+      dc_price: fields.dc_price,
+    });
+  } catch (error) {
+    console.warn('Reading.books 등록 실패(주문도서 저장은 유지):', error?.message || error);
+  }
+}
+
 export async function createOrderListItem(body = {}) {
   const orderNo = Number(body.orderNo);
   if (!Number.isFinite(orderNo)) {
@@ -178,7 +201,9 @@ export async function createOrderListItem(body = {}) {
     createdAt: now,
     updatedAt: now,
   };
-  return insertOrderListItem(document);
+  const result = await insertOrderListItem(document);
+  await catalogBookIfMissing(document);
+  return result;
 }
 
 export async function editOrderListItem(orderNo, no, body = {}) {
@@ -192,7 +217,9 @@ export async function editOrderListItem(orderNo, no, body = {}) {
     ...normalizeFields(body),
     updatedAt: new Date().toISOString(),
   };
-  return updateByKey(orderNo, no, fields);
+  const result = await updateByKey(orderNo, no, fields);
+  await catalogBookIfMissing(fields);
+  return result;
 }
 
 export async function renumberOrderList(orderNo) {

@@ -1,4 +1,4 @@
-import { batchLookup, searchByIsbn, searchByItemId, searchByTitle, searchByTitlePublisher } from './book.repository.js';
+import { batchLookup, insertBookIfMissing, searchByIsbn, searchByItemId, searchByTitle, searchByTitlePublisher } from './book.repository.js';
 
 // 결과를 주문도서 폼이 쓰는 형태로 정리.
 function toResult(b) {
@@ -10,6 +10,7 @@ function toResult(b) {
     series_name: b.series_name || '',
     author: b.author || '',
     publisher: b.publisher || '',
+    pub_date: b.pub_date || '',
     price: Number(b.price) || 0,
     dc_price: Number(b.sale_price) || 0, // 할인가(정가할인, sale_price)
   };
@@ -35,6 +36,17 @@ export async function searchBooks(req, res, next) {
     }
 
     return res.json({ ok: true, data: rows.map(toResult) });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// POST /api/orderm/books  { item_id, isbn, title, subtitle, author, publisher, price, dc_price }
+// Reading.books 에 해당 ISBN 이 없을 때만 신규 등록한다.
+export async function createBook(req, res, next) {
+  try {
+    const result = await insertBookIfMissing(req.body || {});
+    return res.status(result.inserted ? 201 : 200).json({ ok: true, data: result });
   } catch (error) {
     return next(error);
   }
