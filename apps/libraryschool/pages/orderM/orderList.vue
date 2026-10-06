@@ -62,6 +62,7 @@
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!contextOrderNo" @click="isProgressOpen = true">처리현황</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!contextOrderNo || dreamering || !items.length" @click="sendDreamer">{{ dreamering ? '전송 중...' : 'Dreamer' }}</button>
             <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!selectedKeys.size" @click="openShip">출고</button>
+            <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" :disabled="!items.length" @click="exportExcel">excel</button>
             <button type="button" class="theme-form-submit" :disabled="!contextOrderNo" @click="openCreate">도서추가</button>
           </div>
         </div>
@@ -735,6 +736,28 @@ const { data, pending, refresh } = await useAsyncData(
   },
 )
 const items = computed<OrderListItem[]>(() => data.value?.data ?? [])
+
+// 엑셀 저장: {주문번호}.xlsx — no / title / author / publisher / qty / price / isbn
+async function exportExcel() {
+  if (!items.value.length) return
+  const XLSX = await import('xlsx')
+  const data = items.value.map((it) => ({
+    no: it.no,
+    title: it.title,
+    author: it.author,
+    publisher: it.publisher,
+    qty: it.qty,
+    price: it.price,
+    isbn: it.isbn,
+  }))
+  const ws = XLSX.utils.json_to_sheet(data, {
+    header: ['no', 'title', 'author', 'publisher', 'qty', 'price', 'isbn'],
+  })
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'orderList')
+  const base = contextOrderNo.value ? String(contextOrderNo.value) : 'order'
+  XLSX.writeFile(wb, `${base}.xlsx`)
+}
 
 // ── Dreamer.contents cid 조회 & 등록 (정가조회 화면과 동일) ────
 // isbn → cid 맵. number=있음, null=조회했으나 없음('+' 표시), undefined=미조회.
