@@ -167,7 +167,7 @@
             </label>
             <label class="theme-form-field c-quarter">
               <span>상태</span>
-              <select v-model="form.status" name="status">
+              <select v-model="form.status" name="status" @change="onStatusChange">
                 <option v-for="s in STATUSES" :key="s" :value="s">{{ s }}</option>
               </select>
             </label>
@@ -965,6 +965,14 @@ function applyShipStatus() {
   const ordered = Number(form.qty) || 0
   const shipped = Number(form.delivery_count) || 0
   form.status = shipped >= ordered ? '출고' : '입고'
+}
+
+// 상태를 바꾸면 해당 일자를 오늘로 채운다. (발주→발주일, 입고→입고일, 출고→출고일)
+function onStatusChange() {
+  const t = todayStr()
+  if (form.status === '발주') form.order_date = t
+  else if (form.status === '입고') form.warehousing_date = t
+  else if (form.status === '출고') form.delivery_date = t
 }
 
 function openCreate() {
