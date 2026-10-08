@@ -442,7 +442,7 @@ definePageMeta({ layout: 'insure' })
 
 // 도서 상태
 // 주문상태: 견적요청(기본) → 주문 → 발주 → 입고 → 출고 → 계산서발행 → 입금
-const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금'] as const
+const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금', '취소'] as const
 type BookStatus = typeof STATUSES[number]
 
 type OrderListItem = {
@@ -893,6 +893,7 @@ const STATUS_CLASS: Record<BookStatus, string> = {
   출고: 'is-shipped',
   계산서발행: 'is-invoice',
   입금: 'is-paid',
+  취소: 'is-cancel',
 }
 function statusClass(s: BookStatus) {
   return STATUS_CLASS[s] ?? ''
@@ -1426,6 +1427,7 @@ async function remove() {
 .book-status.is-shipped  { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
 .book-status.is-invoice  { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
 .book-status.is-paid     { background: #ecfdf5; color: #047857; border-color: #6ee7b7; }
+.book-status.is-cancel   { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
 
 /* Dreamer.contents cid 열 */
 .ol-cid-col {

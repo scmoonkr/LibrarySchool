@@ -31,7 +31,7 @@
           </div>
           <div class="theme-backend-head-right">
             <span class="theme-meta">{{ filtered.length }} 건</span>
-            <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="openPending">처리현황</button>
+            <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="openSearch">주문도서검색</button>
             <button type="button" class="theme-form-submit" @click="openCreate">+ 신규 주문</button>
           </div>
         </div>
@@ -49,10 +49,9 @@
                 <th>주문명</th>
                 <th>상태</th>
                 <th class="col-num">주문금액</th>
-                <th>견적요청일</th>
-                <th>주문일자</th>
-                <th>발주일자</th>
-                <th>출고일자</th>
+                <th>견적(주문)일</th>
+                <th>발주(출고)일</th>
+                <th>계산서(입금)일</th>
               </tr>
             </thead>
             <tbody>
@@ -63,10 +62,9 @@
                 <td>{{ item.ordername || '-' }}</td>
                 <td><span :class="['order-status', statusClass(item.status)]">{{ item.status }}</span></td>
                 <td class="col-num mono">{{ formatPrice(item.order_price) }}</td>
-                <td class="mono">{{ item.quote_date || '-' }}</td>
-                <td class="mono">{{ item.order_date || '-' }}</td>
-                <td class="mono">{{ item.purchase_date || '-' }}</td>
-                <td class="mono">{{ item.delivery_date || '-' }}</td>
+                <td class="mono">{{ datePair(item.quote_date, item.order_date, true) }}</td>
+                <td class="mono">{{ datePair(item.purchase_date, item.delivery_date) }}</td>
+                <td class="mono">{{ datePair(item.invoice_date, item.payment_date) }}</td>
               </tr>
             </tbody>
           </table>
@@ -253,37 +251,52 @@
       </div>
     </div>
 
-    <!-- 처리현황: 발주(거래중)·미입고 도서 조회 -->
-    <div v-if="isPendingOpen" class="op-modal" @click="isPendingOpen = false">
-      <div class="op-panel" @click.stop>
+    <!-- 주문도서검색: ISBN·서명으로 주문도서 조회 -->
+    <div v-if="isSearchOpen" class="op-modal" @click="isSearchOpen = false">
+      <div class="op-panel op-panel-wide" @click.stop>
         <div class="op-head">
-          <strong>처리현황 — 발주·미입고 도서</strong>
-          <span class="theme-meta">{{ pendingRows.length }} 건</span>
-          <button type="button" class="theme-backend-close" aria-label="닫기" @click="isPendingOpen = false">×</button>
+          <strong>주문도서검색</strong>
+          <input
+            ref="searchInput"
+            v-model="searchQ"
+            type="search"
+            class="op-search-input"
+            placeholder="ISBN · 서명 검색"
+          />
+          <span class="theme-meta">{{ searchRows.length }} 건</span>
+          <button type="button" class="theme-backend-close" aria-label="닫기" @click="isSearchOpen = false">×</button>
         </div>
         <div class="op-body">
-          <div v-if="pendingLoading" class="theme-backend-state">불러오는 중...</div>
-          <div v-else-if="!pendingRows.length" class="theme-backend-state">발주 후 입고되지 않은 도서가 없습니다.</div>
+          <div v-if="searchLoading" class="theme-backend-state">검색 중...</div>
+          <div v-else-if="!searchQ.trim()" class="theme-backend-state">ISBN 또는 서명을 입력하세요.</div>
+          <div v-else-if="!searchRows.length" class="theme-backend-state">검색 결과가 없습니다.</div>
           <table v-else class="theme-backend-table op-table">
             <thead>
               <tr>
-                <th>주문기관/주문명</th>
-                <th>도서명</th>
+                <th>ISBN</th>
+                <th>서명</th>
+                <th>출판사</th>
+                <th class="col-num">정가</th>
+                <th>주문처</th>
                 <th>발주처</th>
-                <th>발주일</th>
+                <th>상태</th>
                 <th>주문일</th>
+                <th>입고일</th>
+                <th>출고일</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in pendingRows" :key="`${r.orderNo}-${r.no}`">
-                <td>
-                  <strong>{{ r.customer || '-' }}</strong>
-                  <div v-if="r.ordername" class="op-sub">{{ r.ordername }}</div>
-                </td>
-                <td>{{ r.title || '-' }}</td>
+              <tr v-for="r in searchRows" :key="`${r.orderNo}-${r.no}`">
+                <td class="mono">{{ r.isbn || '-' }}</td>
+                <td><strong>{{ r.title }}</strong></td>
+                <td>{{ r.publisher || '-' }}</td>
+                <td class="col-num mono">{{ formatPrice(r.price) }}</td>
+                <td>{{ r.customer || '-' }}</td>
                 <td>{{ r.supplier || '-' }}</td>
-                <td class="mono">{{ r.order_date || '-' }}</td>
+                <td><span :class="['order-status', statusClass(r.status)]">{{ r.status }}</span></td>
                 <td class="mono">{{ r.orderDate || '-' }}</td>
+                <td class="mono">{{ r.warehousing_date || '-' }}</td>
+                <td class="mono">{{ r.delivery_date || '-' }}</td>
               </tr>
             </tbody>
           </table>
@@ -303,7 +316,7 @@ import OrderProgressModal from '~/components/orderM/OrderProgressModal.vue'
 definePageMeta({ layout: 'insure' })
 
 // 주문상태: 견적요청 → 주문 → 발주 → 입고 → 출고 → 계산서발행 → 입금
-const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금'] as const
+const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금', '취소'] as const
 type OrderStatus = typeof STATUSES[number]
 
 type Order = {
@@ -332,33 +345,54 @@ const API = `${apiBase}/api/orderm/orders`
 const PAGE_SIZE = 10
 const isSidebarOpen = ref(false)
 
-// ── 처리현황: 발주(거래중)·미입고 도서 ─────────────────────────
-type PendingRow = {
+// ── 주문도서검색: ISBN·서명으로 주문도서 조회 ────────────────
+type SearchRow = {
   orderNo: number
   no: number
+  isbn: string
   title: string
-  supplier: string
-  order_date: string // 발주일 (order_list)
-  customer: string
-  ordername: string
-  orderDate: string  // 주문일 (orders)
+  publisher: string
+  price: number
+  supplier: string      // 발주처
+  status: OrderStatus
+  warehousing_date: string // 입고일
+  delivery_date: string    // 출고일
+  customer: string      // 주문처
+  orderDate: string     // 주문일 (orders)
 }
-const isPendingOpen = ref(false)
-const pendingLoading = ref(false)
-const pendingRows = ref<PendingRow[]>([])
-async function openPending() {
-  isPendingOpen.value = true
-  pendingLoading.value = true
+const isSearchOpen = ref(false)
+const searchLoading = ref(false)
+const searchQ = ref('')
+const searchRows = ref<SearchRow[]>([])
+const searchInput = ref<HTMLInputElement | null>(null)
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+function openSearch() {
+  isSearchOpen.value = true
+  nextTick(() => searchInput.value?.focus())
+}
+// 입력 250ms 디바운스 후 검색.
+watch(searchQ, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(runSearch, 250)
+})
+async function runSearch() {
+  const q = searchQ.value.trim()
+  if (!q) {
+    searchRows.value = []
+    return
+  }
+  searchLoading.value = true
   try {
-    const res = await $fetch<{ ok: boolean; data: PendingRow[] }>(
-      `${apiBase}/api/orderm/order-list/pending`,
+    const res = await $fetch<{ ok: boolean; data: SearchRow[] }>(
+      `${apiBase}/api/orderm/order-list/search?q=${encodeURIComponent(q)}`,
       { credentials: 'include' },
     )
-    pendingRows.value = res.data ?? []
+    searchRows.value = res.data ?? []
   } catch {
-    pendingRows.value = []
+    searchRows.value = []
   } finally {
-    pendingLoading.value = false
+    searchLoading.value = false
   }
 }
 
@@ -386,6 +420,8 @@ const filtered = computed(() => {
     if (from && o.order_date < from) return false
     if (to && o.order_date > to) return false
     if (statusFilter.value && o.status !== statusFilter.value) return false
+    // 전체(상태 미선택) 조회 시 완료('입금')·취소 거래는 제외한다. (해당 상태 필터 선택 시엔 표시)
+    if (!statusFilter.value && (o.status === '입금' || o.status === '취소')) return false
     if (q && !(`${o.customer} ${o.branch} ${o.ordername}`.toLowerCase().includes(q))) return false
     return true
   })
@@ -403,12 +439,25 @@ const STATUS_CLASS: Record<OrderStatus, string> = {
   출고: 'is-shipped',
   계산서발행: 'is-invoice',
   입금: 'is-paid',
+  취소: 'is-cancel',
 }
 function statusClass(s: OrderStatus) {
   return STATUS_CLASS[s] ?? ''
 }
 function formatPrice(v: number) {
   return (v ?? 0).toLocaleString('ko-KR')
+}
+
+// 두 날짜를 "first(second)" 로 묶어 표시한다. second 는 월-일(mm-dd),
+// first 는 fullFirst 면 전체(yyyy-mm-dd), 아니면 월-일(mm-dd).
+// 한쪽만 있으면 그것만, 둘 다 없으면 '-'.
+function datePair(a?: string, b?: string, fullFirst = false) {
+  const av = (a || '').trim()
+  const first = fullFirst ? av : av.slice(5)
+  const second = (b || '').trim().slice(5) // mm-dd
+  if (first && second) return `${first}(${second})`
+  if (first) return first
+  return second ? `(${second})` : '-'
 }
 
 // input[type=date] 가 쓰는 YYYY-MM-DD. 로컬 기준이라 toISOString() 은 쓰지 않는다.
@@ -492,6 +541,7 @@ const STATUS_STEPS: { value: OrderStatus; label: string; clickable: boolean }[] 
   { value: '출고', label: '출고', clickable: true },
   { value: '계산서발행', label: '계산서', clickable: true },
   { value: '입금', label: '입금', clickable: true },
+  { value: '취소', label: '취소', clickable: true },
 ]
 
 // 상태 스텝 클릭 — 주문과 그 주문도서 전체의 상태를 맞추고, 상태별 관련 날짜/발주처를 함께 갱신한다.
@@ -773,6 +823,7 @@ async function remove() {
 .order-status.is-shipped  { background: #f1f5f9; color: #334155; border-color: #e2e8f0; }
 .order-status.is-invoice  { background: #faf5ff; color: #6b21a8; border-color: #e9d5ff; }
 .order-status.is-paid     { background: #ecfdf5; color: #047857; border-color: #6ee7b7; }
+.order-status.is-cancel   { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
 
 /* drawer */
 .theme-backend-user-drawer {
@@ -967,7 +1018,7 @@ async function remove() {
   color: var(--theme-fg-faint);
 }
 
-/* 처리현황 모달 */
+/* 처리현황 / 주문도서검색 모달 */
 .op-modal {
   position: fixed;
   inset: var(--theme-topbar-h) 0 0 0;
@@ -988,6 +1039,17 @@ async function remove() {
   border-radius: 12px;
   box-shadow: 0 24px 48px rgba(18, 24, 32, 0.24);
   overflow: hidden;
+}
+.op-panel-wide {
+  width: min(100%, 1200px);
+}
+.op-search-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 12px;
+  border: 1px solid var(--theme-line);
+  border-radius: 8px;
+  font-size: 13px;
 }
 .op-head {
   display: flex;

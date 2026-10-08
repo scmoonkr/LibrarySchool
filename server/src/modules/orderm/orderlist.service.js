@@ -5,6 +5,7 @@ import {
   bulkSetStatusByOrderNo,
   bulkSetWarehousing,
   listPendingPurchase,
+  searchOrderBooks,
   replaceOrderListByOrderNo,
   deleteByKey,
   findByKey,
@@ -17,7 +18,7 @@ import {
 import { insertBookIfMissing } from './book.repository.js';
 
 // 주문상태: 견적요청(기본) → 주문 → 발주 → 입고 → 출고
-const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금'];
+const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금', '취소'];
 const DEFAULT_STATUS = '견적요청';
 
 function appError(message, statusCode = 400) {
@@ -74,6 +75,11 @@ export async function getOrderList(query = {}) {
 // 처리현황: 발주(거래중)·미입고 도서 목록.
 export async function getPendingPurchase() {
   return listPendingPurchase();
+}
+
+// 주문도서 검색: ISBN·서명으로 조회(주문처·주문일 포함).
+export async function searchOrderBookList(q) {
+  return searchOrderBooks(q);
 }
 
 // 정가조회 → 주문저장: 여러 행을 order_list 로 일괄 upsert((orderNo, no) 기준).

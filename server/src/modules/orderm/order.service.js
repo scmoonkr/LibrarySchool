@@ -8,7 +8,7 @@ import {
 } from './order.repository.js';
 import { sumDcPriceByOrder } from './orderlist.repository.js';
 
-const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금'];
+const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금', '취소'];
 
 function appError(message, statusCode = 400) {
   const error = new Error(message);

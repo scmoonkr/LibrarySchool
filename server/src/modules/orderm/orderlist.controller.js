@@ -3,6 +3,7 @@ import {
   editOrderListItem,
   getOrderList,
   getPendingPurchase,
+  searchOrderBookList,
   removeOrderListItem,
   renumberOrderList,
   saveOrderListBulk,
@@ -25,6 +26,16 @@ export async function listItems(req, res, next) {
 export async function listPendingItems(req, res, next) {
   try {
     const items = await getPendingPurchase();
+    return res.json({ ok: true, data: items });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+// GET /api/orderm/order-list/search?q= — 주문도서 검색(ISBN·서명).
+export async function searchItems(req, res, next) {
+  try {
+    const items = await searchOrderBookList(req.query.q);
     return res.json({ ok: true, data: items });
   } catch (error) {
     return next(error);

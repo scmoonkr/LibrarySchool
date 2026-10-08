@@ -59,13 +59,64 @@ export async function listPendingPurchase() {
     .toArray();
 }
 
-// 주문별 할인가(dc_price) 합계. 주문(order) 화면의 '주문금액' 계산에 쓴다.
+// 주문도서 검색: ISBN(접두) 또는 서명(부분)으로 order_list 를 찾아
+// 주문(orders)과 조인해 주문처(고객)·주문일을 함께 내려준다.
+export async function searchOrderBooks(keyword) {
+  const q = String(keyword || '').trim();
+  if (!q) return [];
+  const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const col = getDatabase().collection(COLLECTION_NAME);
+  return col
+    .aggregate([
+      { $match: { $or: [{ isbn: { $regex: `^${esc}` } }, { title: { $regex: esc } }] } },
+      {
+        $lookup: {
+          from: 'orders',
+          localField: 'orderNo',
+          foreignField: 'orderno',
+          as: 'order',
+        },
+      },
+      { $unwind: { path: '$order', preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          orderNo: 1,
+          no: 1,
+          isbn: 1,
+          title: 1,
+          publisher: 1,
+          price: 1,
+          supplier: 1, // 발주처
+          status: 1,
+          warehousing_date: 1, // 입고일
+          delivery_date: 1, // 출고일
+          customer: '$order.customer', // 주문처
+          orderDate: '$order.order_date', // 주문일
+        },
+      },
+      { $sort: { orderNo: -1, no: 1 } },
+      { $limit: 300 },
+    ])
+    .toArray();
+}
+
+// 주문별 주문금액(할인가 × 수량) 합계. 주문(order) 화면의 '주문금액' 계산에 쓴다.
 // { [orderNo]: 합계 } 형태로 반환한다.
 export async function sumDcPriceByOrder() {
   const col = getDatabase().collection(COLLECTION_NAME);
   const rows = await col
     .aggregate([
-      { $group: { _id: '$orderNo', total: { $sum: { $ifNull: ['$dc_price', 0] } } } },
+      {
+        $group: {
+          _id: '$orderNo',
+          total: {
+            $sum: {
+              $multiply: [{ $ifNull: ['$dc_price', 0] }, { $ifNull: ['$qty', 0] }],
+            },
+          },
+        },
+      },
     ])
     .toArray();
   const map = {};

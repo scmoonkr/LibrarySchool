@@ -12,6 +12,7 @@ export function useOrderMenu() {
     { key: 'orderList', label: '주문도서', to: '/orderM/orderList' },
     { key: 'checkPrice', label: '정가조회', to: '/orderM/checkPrice' },
     { key: 'checkBook', label: '입고검수', to: '/orderM/checkBook' },
+    { key: 'books', label: '도서검색', to: '/orderM/books' },
     { key: 'customer', label: '거래처', to: '/orderM/customer' },
   ];
 
