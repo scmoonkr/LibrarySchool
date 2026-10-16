@@ -133,9 +133,13 @@ function toContentsDoc(book, cid) {
   });
   tags.push({ tagno: '950', ind1: '1', ind2: ' ', subfield: [{ sfld: 'b', data: `\\${price}` }] });
 
+  const itemId = str(b.item_id);
+
   return {
     cid,
     isbn: str(b.isbn),
+    // 알라딘 상품 id(item_id)가 있으면 itemID 로 넣는다.
+    ...(itemId ? { itemID: itemId } : {}),
     record_state: 'u',
     type: '',
     setisbn: '',
@@ -188,6 +192,39 @@ export async function insertContents(isbn) {
   return { ok: true, cid: doc.cid, isbn: code };
 }
 
+// ISBN 목록을 Dreamer.contents 에서 확인해 없는 것만 신규 등록한다.
+// Reading.books 에 없어서 문서를 만들 수 없으면 missing 으로 센다.
+export async function ensureContentsForIsbns(isbns) {
+  const list = [
+    ...new Set((Array.isArray(isbns) ? isbns : []).map((s) => str(s)).filter(Boolean)),
+  ];
+  let added = 0;
+  let skipped = 0;
+  let missing = 0;
+  if (!list.length) return { added, skipped, missing };
+
+  let cid = await getMaxContentsCid();
+  for (const isbn of list) {
+    // eslint-disable-next-line no-await-in-loop
+    const existing = await findContentByIsbn(isbn);
+    if (existing) {
+      skipped += 1;
+      continue;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    const book = await findBookByIsbn(isbn);
+    if (!book) {
+      missing += 1;
+      continue;
+    }
+    cid += 1;
+    // eslint-disable-next-line no-await-in-loop
+    await insertContent(toContentsDoc(book, cid));
+    added += 1;
+  }
+  return { added, skipped, missing };
+}
+
 export async function sendToDreamer({ orderNo, dreamerOrderNo, rows } = {}) {
   const on = Number(orderNo);
   if (!Number.isFinite(on) || on <= 0) {
@@ -210,5 +247,9 @@ export async function sendToDreamer({ orderNo, dreamerOrderNo, rows } = {}) {
   };
 
   await upsertCybOrder(doc);
-  return { ok: true, count: doc.Original.length, orderNo: targetNo };
+
+  // cybOrder 저장 후, 각 도서 ISBN 을 Dreamer.contents 에서 확인해 없으면 추가한다.
+  const contents = await ensureContentsForIsbns(list.map((r) => r && r.isbn));
+
+  return { ok: true, count: doc.Original.length, orderNo: targetNo, contents };
 }

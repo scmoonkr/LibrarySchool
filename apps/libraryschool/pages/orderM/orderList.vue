@@ -602,8 +602,9 @@ async function lookupItemId() {
 }
 
 // ── crawling (알라딘 상세 재수집) ────────────────────────────
-// form.item_id 로 CrawlingBooks 의 detailByItemid 를 실행해
-// 알라딘 상세를 Reading.books 에 (재)저장한다.
+// form.item_id 로 CrawlingBooks 의 detailByItemid 를 실행해 알라딘 상세를
+// Reading.books 에 (재)저장하고, 응답(result.item)으로 폼을 채운다.
+// (KRIN manager/books drawer 의 crawling 과 동일하게 폼을 갱신한다.)
 const crawlLoading = ref(false)
 async function runCrawl() {
   const itemId = (form.item_id || '').trim()
@@ -612,11 +613,26 @@ async function runCrawl() {
   message.value = ''
   isError.value = false
   try {
-    await $fetch(`${apiBase}/api/crawl/detail`, {
+    const res = await $fetch<{ ok: boolean; result?: { item?: any } }>(`${apiBase}/api/crawl/detail`, {
       method: 'POST',
       credentials: 'include',
       body: { itemId },
     })
+    const item = res?.result?.item
+    if (item) {
+      // 크롤링에서 비어 온 항목은 기존 값을 지우지 않는다.
+      if (item.isbn) form.isbn = String(item.isbn)
+      if (item.title) form.title = String(item.title)
+      if (item.subtitle) form.subtitle = String(item.subtitle)
+      if (item.author) form.author = String(item.author)
+      if (item.publisher) form.publisher = String(item.publisher)
+      if (item.pub_date) form.pub_date = String(item.pub_date).slice(0, 10)
+      if (item.price != null) form.price = Number(item.price) || 0
+      // 할인가가 비어 있으면 정가의 90%(10원 절사)로 채운다.
+      if (!(Number(form.dc_price) > 0) && Number(form.price) > 0) {
+        form.dc_price = Math.floor((Number(form.price) || 0) * 0.9 / 10) * 10
+      }
+    }
     message.value = `crawling 완료 (itemId ${itemId})`
   } catch (err: any) {
     isError.value = true
@@ -850,12 +866,16 @@ async function sendDreamer() {
       qty: it.qty,
       price: it.price,
     }))
-    const res = await $fetch<{ ok: boolean; data: { count: number; orderNo: number } }>(`${apiBase}/api/orderm/dreamer`, {
+    const res = await $fetch<{ ok: boolean; data: { count: number; orderNo: number; contents?: { added: number; skipped: number; missing: number } } }>(`${apiBase}/api/orderm/dreamer`, {
       method: 'POST',
       credentials: 'include',
       body: { orderNo: on, dreamerOrderNo, rows },
     })
-    window.alert(`Dreamer 전송 완료 (주문번호 ${res.data?.orderNo ?? dreamerOrderNo}, ${res.data?.count ?? 0}건)`)
+    const c = res.data?.contents
+    const contentsMsg = c
+      ? `\nDreamer.contents: 추가 ${c.added} · 기존 ${c.skipped}` + (c.missing ? ` · 미등록(도서DB 없음) ${c.missing}` : '')
+      : ''
+    window.alert(`Dreamer 전송 완료 (주문번호 ${res.data?.orderNo ?? dreamerOrderNo}, ${res.data?.count ?? 0}건)${contentsMsg}`)
   } catch (err: any) {
     window.alert(err?.data?.message || 'Dreamer 전송에 실패했습니다.')
   } finally {

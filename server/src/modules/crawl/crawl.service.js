@@ -9,22 +9,29 @@ function appError(message, statusCode = 400) {
 }
 
 // stdout 문자열에서 payload JSON 을 추출한다.
-// index.js 는 `console.log(JSON.stringify(payload, null, 2))` 로 출력하고,
-// 스크레이퍼의 잡음은 console.warn(=stderr) 이라 stdout 은 보통 순수 JSON 이다.
-// 혹시 앞뒤에 다른 로그가 섞여도 처음 '{' ~ 마지막 '}' 구간을 파싱한다.
+// index.js 는 `console.log(JSON.stringify(payload, null, 2))` 로 payload 를 출력하는데,
+// dotenv v17 배너([dotenv@..] injecting env … tip: …{ debug: true })가 stdout 에 섞이고
+// 그 tip 에 중괄호가 들어가 단순 '{'~'}' 추출이 깨질 수 있다.
+// payload 는 줄 맨 앞에서 '{' 로 시작하므로, 줄 시작 '{' 부터 마지막 '}' 까지를 파싱한다.
 function parsePayload(stdout) {
   const text = String(stdout || '').trim();
   if (!text) return null;
   try {
     return JSON.parse(text);
   } catch {
-    const start = text.indexOf('{');
+    // 줄 맨 앞의 '{' (= pretty-print payload 시작) 들을 뒤에서부터 시도.
+    const starts = [];
+    const re = /^\{/gm;
+    let m;
+    while ((m = re.exec(text)) !== null) starts.push(m.index);
     const end = text.lastIndexOf('}');
-    if (start >= 0 && end > start) {
+    for (let i = starts.length - 1; i >= 0; i -= 1) {
+      const s = starts[i];
+      if (end <= s) continue;
       try {
-        return JSON.parse(text.slice(start, end + 1));
+        return JSON.parse(text.slice(s, end + 1));
       } catch {
-        return null;
+        /* 다음 후보 시도 */
       }
     }
     return null;
@@ -45,11 +52,18 @@ export async function crawlDetailByItemId(itemId) {
   }
 
   // 크롤러는 playwright 로 페이지를 여므로 시간이 걸린다. 넉넉히 대기한다.
+  // DOTENV_CONFIG_QUIET: 자식 프로세스의 dotenv 배너를 꺼 stdout 을 순수 JSON 으로 유지.
   const { stdout } = await new Promise((resolve, reject) => {
     execFile(
       process.execPath,
       ['src/index.js', 'detailByItemid', id],
-      { cwd, timeout: 120000, maxBuffer: 1024 * 1024 * 20, windowsHide: true },
+      {
+        cwd,
+        timeout: 240000,
+        maxBuffer: 1024 * 1024 * 20,
+        windowsHide: true,
+        env: { ...process.env, DOTENV_CONFIG_QUIET: 'true' },
+      },
       (error, stdout, stderr) => {
         if (error) {
           const detail = (stderr || error.message || '').toString().trim().slice(-500);

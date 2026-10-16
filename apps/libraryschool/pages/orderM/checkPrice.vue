@@ -234,16 +234,18 @@
             </label>
           </div>
           <div class="cp-edit-actions">
-            <button type="button" class="theme-form-submit theme-form-submit-warning cp-edit-del" @click="deleteEditRow">삭제</button>
-            <button
-              type="button"
-              class="theme-form-submit theme-form-submit-secondary-soft"
-              :disabled="!editForm.isbn.trim() || registering"
-              title="Reading.books 에 이 ISBN 이 없으면 신규 등록"
-              @click="registerBook"
-            >{{ registering ? '등록 중...' : '도서DB 등록' }}</button>
-            <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="closeEdit">취소</button>
-            <button type="submit" class="theme-form-submit">저장</button>
+            <button type="button" class="theme-form-submit theme-form-submit-warning" @click="deleteEditRow">삭제</button>
+            <div class="cp-edit-actions-right">
+              <button
+                type="button"
+                class="theme-form-submit theme-form-submit-secondary-soft"
+                :disabled="!editForm.isbn.trim() || registering"
+                title="Reading.books 에 이 ISBN 이 없으면 신규 등록"
+                @click="registerBook"
+              >{{ registering ? '등록 중...' : '도서DB 등록' }}</button>
+              <button type="button" class="theme-form-submit theme-form-submit-secondary-soft" @click="closeEdit">취소</button>
+              <button type="submit" class="theme-form-submit">저장</button>
+            </div>
           </div>
         </form>
       </div>
@@ -1054,11 +1056,24 @@ async function dreamer() {
 }
 .cp-edit-actions {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
   margin-top: 4px;
+  flex-wrap: nowrap;
 }
-.cp-edit-del {
-  margin-right: auto;
+.cp-edit-actions-right {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  justify-content: flex-end;
+}
+/* 버튼을 줄여 한 줄에 맞춘다 */
+.cp-edit-actions .theme-form-submit {
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 12px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 </style>
