@@ -189,6 +189,28 @@ function parseBlockBody(lines) {
         j++
       }
       next = j
+    } else if (value.startsWith('<')) {
+      // Multi-line HTML value support: if the value starts with '<' (e.g. a
+      // <span style="…">…</span> that the author split across lines) and is
+      // still an INCOMPLETE tag/element, keep appending following lines until
+      // it balances — or we hit a blank line, the next option (key:), the
+      // closing fence, or EOF. Already-complete single-line HTML is left as is
+      // (so following content lines are not swallowed).
+      const incomplete = (s) => {
+        if (s.lastIndexOf('<') > s.lastIndexOf('>')) return true // 태그 '>' 가 안 닫힘
+        const openTags = (s.match(/<[a-zA-Z][^>]*>/g) || []).filter((t) => !t.endsWith('/>')).length
+        const closeTags = (s.match(/<\/[a-zA-Z][^>]*>/g) || []).length
+        return openTags > closeTags
+      }
+      let j = next
+      while (incomplete(value) && j < lines.length) {
+        const ln = lines[j]
+        if (ln.trim() === '' || FENCE_CLOSE_RE.test(ln) || OPTION_LINE_RE.test(ln)) break
+        value += '\n' + ln
+        j++
+      }
+      value = value.trim()
+      next = j
     }
 
     options[key] = value

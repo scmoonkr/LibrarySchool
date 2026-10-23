@@ -9,8 +9,8 @@
     :style="bannerStyle"
   >
     <div class="block-title-inner">
-      <h2 class="block-title-title">{{ title }}</h2>
-      <p v-if="subtitle" class="block-title-subtitle">{{ subtitle }}</p>
+      <h2 class="block-title-title" v-html="title"></h2>
+      <p v-if="subtitle" class="block-title-subtitle" v-html="subtitle"></p>
       <div v-if="description" class="block-title-description" v-html="renderedDescription"></div>
       <a
         v-if="buttonText"
