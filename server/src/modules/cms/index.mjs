@@ -737,7 +737,13 @@ async function handlePublicMenu(req, res, location) {
         if (c) { url = `/${c.contentType}/${c.slug}`; ok = true }
       } else if (it.type === 'category') {
         const c = categoryMap.get(String(it.categoryId))
-        if (c) { url = `/categories/${c.slug}`; ok = true }
+        // board 를 켠 카테고리 항목은 게시판 목록(/board)으로 보낸다.
+        if (c) {
+          url = it.isBoard === true
+            ? `/board?category=${encodeURIComponent(c.slug)}`
+            : `/categories?category=${encodeURIComponent(c.slug)}`
+          ok = true
+        }
       } else if (it.type === 'url') {
         // empty URL is allowed — renders as non-clickable 대표메뉴 (section header)
         url = it.url || ''
@@ -749,6 +755,7 @@ async function handlePublicMenu(req, res, location) {
         title: it.title,
         url,
         target: it.target || 'self',
+        isBoard: it.isBoard === true,
         children: resolveTree(it.children),
       })
     }
@@ -1305,7 +1312,8 @@ async function handlePublicPostCards(req, res, url) {
   const parseCsv = s => String(s || '').split(',').map(t => t.trim()).filter(Boolean)
   const categorySlugs = parseCsv(url.searchParams.get('categories'))
   const tagSlugs = parseCsv(url.searchParams.get('tags'))
-  const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 6, 1), 24)
+  const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 6, 1), 100)
+  const skip = Math.max(Number(url.searchParams.get('skip')) || 0, 0)
 
   const db = await getMongoDb()
 
@@ -1332,24 +1340,30 @@ async function handlePublicPostCards(req, res, url) {
     isDeleted: { $ne: true },
   }
   if (categorySlugs.length) {
-    if (!catDocs.length) { sendJson(req, res, 200, { items: [] }); return }
+    if (!catDocs.length) { sendJson(req, res, 200, { items: [], total: 0 }); return }
     filter.categoryIds = { $in: catDocs.map(d => d._id) }
   }
   if (tagSlugs.length) {
-    if (!tagDocs.length) { sendJson(req, res, 200, { items: [] }); return }
+    if (!tagDocs.length) { sendJson(req, res, 200, { items: [], total: 0 }); return }
     filter.tagIds = { $in: tagDocs.map(d => d._id) }
   }
 
-  const posts = await db.collection('contents')
-    .find(filter, {
-      projection: {
-        title: 1, slug: 1, summary: 1, publishedAt: 1, thumbnailImageId: 1,
-        authorId: 1, meta: 1, categoryIds: 1, tagIds: 1,
-      },
-    })
-    .sort({ publishedAt: -1 })
-    .limit(limit)
-    .toArray()
+  // 게시판(/board)은 페이지를 넘겨야 하므로 skip 과 전체 건수를 함께 돌려준다.
+  // 기존 호출부(postList/board 블록)는 skip 을 안 보내고 total 을 안 쓰므로 영향 없다.
+  const [posts, total] = await Promise.all([
+    db.collection('contents')
+      .find(filter, {
+        projection: {
+          title: 1, slug: 1, summary: 1, publishedAt: 1, thumbnailImageId: 1,
+          authorId: 1, meta: 1, categoryIds: 1, tagIds: 1,
+        },
+      })
+      .sort({ publishedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray(),
+    db.collection('contents').countDocuments(filter),
+  ])
 
   // Enrich: thumbnails + authors + category/tag labels, one batch each.
   const thumbIds = posts.map(p => p.thumbnailImageId).filter(Boolean)
@@ -1409,7 +1423,7 @@ async function handlePublicPostCards(req, res, url) {
     tags: (p.tagIds || []).map(id => tagById[String(id)]).filter(Boolean),
   }))
 
-  sendJson(req, res, 200, { items })
+  sendJson(req, res, 200, { items, total })
 }
 
 // ── Content access control (page/post level) ────────────────────────────────

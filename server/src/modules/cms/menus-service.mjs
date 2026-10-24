@@ -24,6 +24,8 @@ function sanitizeItems(items, depth = 0) {
       type: it.type,
       target: it.target === 'blank' ? 'blank' : 'self',
       isVisible: it.isVisible !== false,
+      // 게시판(/board)으로 열지 여부. 명시적으로 true 일 때만 켠다.
+      isBoard: it.isBoard === true,
       order: Number.isFinite(Number(it.order)) ? Number(it.order) : 0,
     }
     if (it.type === 'page' || it.type === 'post') {
