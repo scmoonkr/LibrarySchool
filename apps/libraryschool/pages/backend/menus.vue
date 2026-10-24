@@ -148,20 +148,31 @@
             </div>
 
             <p class="theme-meta menus-help">
-              항목을 순서대로 정렬하세요. 항목의 화살표를 누르면 추가 설정이 보입니다.
+              항목을 끌어서 순서를 바꿀 수 있습니다. 항목의 화살표를 누르면 추가 설정이 보입니다.
             </p>
 
             <ul v-if="form.items.length" class="menus-items">
               <li
                 v-for="(item, i) in form.items"
                 :key="item.id"
-                :class="['menus-item', { 'menus-item-child': depthOf(item) > 0 }]"
+                :class="['menus-item', {
+                  'menus-item-child': depthOf(item) > 0,
+                  'is-dragging': dragIndex === i,
+                  'is-dropbefore': dragOverIndex === i,
+                }]"
                 :style="{ marginLeft: `${depthOf(item) * 28}px` }"
+                @dragover.prevent="onDragOver(i)"
+                @drop.prevent="onDrop(i)"
+                @dragleave="onDragLeave(i)"
               >
                 <header
                   class="menus-item-head"
+                  draggable="true"
+                  @dragstart="onDragStart(i, $event)"
+                  @dragend="onDragEnd"
                   @click="toggleExpand(item.id)"
                 >
+                  <span class="menus-item-grip" title="끌어서 순서 변경">⠿</span>
                   <span v-if="depthOf(item) > 0" class="theme-meta menus-item-depth-marker">└</span>
                   <strong class="menus-item-title">{{ item.title || '(이름 없음)' }}</strong>
                   <span v-if="depthOf(item) > 0" class="menus-item-sub-badge">하위</span>
@@ -191,10 +202,16 @@
                     </label>
                     <label class="theme-form-field">
                       <span>표시</span>
-                      <label class="theme-backend-posts-check" style="padding:8px 0 0">
-                        <input type="checkbox" v-model="item.isVisible" />
-                        <span>메뉴에 노출</span>
-                      </label>
+                      <div class="menus-item-checks">
+                        <label class="theme-backend-posts-check" style="padding:8px 0 0">
+                          <input type="checkbox" v-model="item.isVisible" />
+                          <span>메뉴에 노출</span>
+                        </label>
+                        <label class="theme-backend-posts-check" style="padding:8px 0 0">
+                          <input type="checkbox" v-model="item.isBoard" />
+                          <span>board</span>
+                        </label>
+                      </div>
                     </label>
                   </div>
 
@@ -255,6 +272,8 @@ type MenuItem = {
   url?: string
   target: 'self' | 'blank'
   isVisible: boolean
+  /** 켜면 이 항목을 게시판(/board)으로 연다. 기본은 꺼짐. */
+  isBoard: boolean
   order: number
   children?: MenuItem[]
 }
@@ -400,7 +419,7 @@ function addPages() {
     if (!p) continue
     form.items.push({
       id: makeId(), title: p.title, type: 'page', contentId: p.id,
-      target: 'self', isVisible: true, order: form.items.length, parentItemId: null,
+      target: 'self', isVisible: true, isBoard: false, order: form.items.length, parentItemId: null,
     })
   }
   pickedPageIds.value = []
@@ -412,7 +431,7 @@ function addPosts() {
     if (!p) continue
     form.items.push({
       id: makeId(), title: p.title, type: 'post', contentId: p.id,
-      target: 'self', isVisible: true, order: form.items.length, parentItemId: null,
+      target: 'self', isVisible: true, isBoard: false, order: form.items.length, parentItemId: null,
     })
   }
   pickedPostIds.value = []
@@ -424,7 +443,7 @@ function addCategories() {
     if (!c) continue
     form.items.push({
       id: makeId(), title: c.name, type: 'category', categoryId: c.id,
-      target: 'self', isVisible: true, order: form.items.length, parentItemId: null,
+      target: 'self', isVisible: true, isBoard: false, order: form.items.length, parentItemId: null,
     })
   }
   pickedCategoryIds.value = []
@@ -440,6 +459,7 @@ function addCustomLink() {
     url: customUrl.value.trim(),  // may be ''
     target: 'self',
     isVisible: true,
+    isBoard: false,
     order: form.items.length,
     parentItemId: null,
   })
@@ -451,6 +471,75 @@ function addCustomLink() {
 
 function toggleExpand(id: string) {
   expandedItemId.value = expandedItemId.value === id ? '' : id
+}
+
+// ── 드래그 정렬 ────────────────────────────────────────────────────────────
+// 순서만 바꾼다. 깊이(하위로/상위로)는 기존 버튼이 담당한다.
+const dragIndex = ref<number | null>(null)
+const dragOverIndex = ref<number | null>(null)
+
+// 부모를 끌면 그 자식들까지 한 덩어리로 움직인다. 자식은 혼자 움직인다.
+function blockLength(i: number): number {
+  const it = form.items[i]
+  if (!it || it.parentItemId) return 1
+  let len = 1
+  while (i + len < form.items.length && form.items[i + len].parentItemId === it.id) len += 1
+  return len
+}
+
+// 자식이 항상 부모 바로 뒤에 오도록 맞춘다. 어디에 떨어뜨려도 목록이 깨지지 않는다.
+function normalizeOrder() {
+  const out: FlatItem[] = []
+  const seen = new Set<string>()
+  for (const it of form.items) {
+    if (it.parentItemId) continue
+    out.push(it)
+    seen.add(it.id)
+    for (const child of form.items) {
+      if (child.parentItemId === it.id) { out.push(child); seen.add(child.id) }
+    }
+  }
+  // 부모를 잃은 항목이 있으면 뒤에 붙여 유실을 막는다.
+  for (const it of form.items) if (!seen.has(it.id)) out.push(it)
+  form.items.splice(0, form.items.length, ...out)
+}
+
+function onDragStart(i: number, e: DragEvent) {
+  dragIndex.value = i
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move'
+    // Firefox 는 데이터가 없으면 드래그를 시작하지 않는다.
+    e.dataTransfer.setData('text/plain', String(i))
+  }
+}
+
+function onDragOver(i: number) {
+  if (dragIndex.value === null) return
+  dragOverIndex.value = i
+}
+
+function onDragLeave(i: number) {
+  if (dragOverIndex.value === i) dragOverIndex.value = null
+}
+
+function onDragEnd() {
+  dragIndex.value = null
+  dragOverIndex.value = null
+}
+
+function onDrop(target: number) {
+  const from = dragIndex.value
+  onDragEnd()
+  if (from === null) return
+
+  const len = blockLength(from)
+  // 자기 자신(또는 자기 블록 안)에 떨어뜨리면 아무것도 하지 않는다.
+  if (target >= from && target < from + len) return
+
+  const block = form.items.splice(from, len)
+  const insertAt = target > from ? target - len : target
+  form.items.splice(insertAt, 0, ...block)
+  normalizeOrder()
 }
 
 function moveUp(i: number) {
@@ -739,6 +828,24 @@ async function deleteCurrentMenu() {
   cursor: pointer;
   user-select: none;
 }
+.menus-item-grip {
+  flex: none;
+  color: var(--theme-fg-faint);
+  font-size: 14px;
+  line-height: 1;
+  cursor: grab;
+}
+.menus-item-head:active .menus-item-grip {
+  cursor: grabbing;
+}
+/* 끌고 있는 항목 */
+.menus-item.is-dragging {
+  opacity: 0.4;
+}
+/* 여기에 놓인다는 표시 */
+.menus-item.is-dropbefore {
+  box-shadow: 0 -2px 0 0 var(--theme-fg);
+}
 .menus-item-head:hover {
   background: var(--theme-bg);
 }
@@ -800,6 +907,14 @@ async function deleteCurrentMenu() {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   align-items: end;
+}
+
+/* '메뉴에 노출' 과 'board' 를 한 줄에 나란히 둔다. */
+.menus-item-checks {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
 }
 
 .menus-item-actions {
