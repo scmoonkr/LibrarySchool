@@ -50,6 +50,7 @@
               <img v-if="author?.avatarUrl" :src="author.avatarUrl" :alt="author.name" class="public-content-avatar" />
               <span v-if="author?.name">{{ author.name }}</span>
               <span v-if="content.publishedAt">{{ formatRelativeDate(content.publishedAt) }}</span>
+              <NuxtLink v-if="isAdmin" :to="editLink" class="public-content-edit">수정</NuxtLink>
             </p>
           </header>
 
@@ -106,7 +107,13 @@
       </section>
     </main>
 
-    <DefaultThemeFooter :columns="footerColumns" :imprint="footerImprint" />
+    <!-- 백엔드 footer 메뉴도 없고 코드 폴백(_fallbackFooter)도 비어 있으면
+         빈 푸터 틀만 남으므로 아예 렌더하지 않는다. -->
+    <DefaultThemeFooter
+      v-if="footerColumns.length"
+      :columns="footerColumns"
+      :imprint="footerImprint"
+    />
   </div>
 </template>
 
@@ -191,6 +198,12 @@ const url = computed(
   () => `${apiBase}/api/public/contents/${encodeURIComponent(slug.value)}?type=${encodeURIComponent(contentType.value)}`,
 )
 
+// 수정 버튼은 admin 이상에게만 보인다. (super 도 통과)
+// 로그인 정보는 클라이언트에서만 받아오므로 버튼도 hydration 뒤에 나타난다.
+const { hasAccess, fetchUser } = useBlockAuth()
+const isAdmin = computed(() => hasAccess('admin'))
+onMounted(fetchUser)
+
 const { data, error } = await useFetch<PublicResponse>(url, {
   key: () => `public:${contentType.value}:${slug.value}`,
 })
@@ -202,6 +215,13 @@ const mediaMap = computed(() => data.value?.mediaMap ?? {})
 const categoryLabels = computed(() => data.value?.categoryLabels ?? [])
 const tagLabels = computed(() => data.value?.tagLabels ?? [])
 const author = computed(() => data.value?.author ?? null)
+
+// 백엔드 편집 화면. page 와 post 가 경로가 갈린다.
+const editLink = computed(() => {
+  const id = (content.value as { id?: string } | null)?.id
+  if (!id) return ''
+  return `/backend/${isPage.value ? 'pages' : 'posts'}/${id}`
+})
 
 // Show the eyebrow unless the author explicitly turned it off; missing meta
 // defaults to true so existing posts keep their eyebrow.
@@ -293,9 +313,9 @@ useHead(() => {
 
 
 const _fallbackFooter = [
-  { title: 'Template', body: '코드로 정의된 Template 안에서만 레이아웃이 결정됩니다.' },
-  { title: 'StyleFamily', body: '색·타이포·여백은 미리 정의된 family 중에서 선택됩니다.' },
-  { title: 'Blocks', body: 'Markdown 안의 허용된 Block 만으로 표현이 확장됩니다.' },
+  // { title: 'Template', body: '코드로 정의된 Template 안에서만 레이아웃이 결정됩니다.' },
+  // { title: 'StyleFamily', body: '색·타이포·여백은 미리 정의된 family 중에서 선택됩니다.' },
+  // { title: 'Blocks', body: 'Markdown 안의 허용된 Block 만으로 표현이 확장됩니다.' },
 ]
 const _dynamicFooter = useSiteFooterColumns()
 const footerColumns = computed(() => _dynamicFooter.value.length ? _dynamicFooter.value : _fallbackFooter)
@@ -401,8 +421,11 @@ if (error.value) {
 }
 
 /* ── Article + meta card ── */
+/* 본문은 shell 폭(1200px)을 그대로 쓴다. 예전에는 880px 읽기 칼럼으로 좁혔는데
+   머리글(카드)만 넓고 본문만 좁아 보여서 폭을 맞췄다. 아래 tpl-wide/sidebar/backend
+   의 max-width:none 은 같은 값이라 그대로 둔다. */
 .public-content {
-  max-width: 880px;
+  max-width: none;
   margin: 0 auto;
 }
 
@@ -473,6 +496,22 @@ if (error.value) {
   font-size: 13px;
   color: var(--theme-fg-dim);
 }
+.public-content-edit {
+  margin-left: auto;
+  flex: none;
+  padding: 4px 14px;
+  border: 1px solid var(--theme-line);
+  color: var(--theme-fg-dim);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.public-content-edit:hover {
+  border-color: var(--theme-fg);
+  color: var(--theme-fg);
+}
+
 .public-content-avatar {
   width: 22px;
   height: 22px;
@@ -500,13 +539,15 @@ if (error.value) {
   color: var(--theme-fg);
 }
 
+/* 머리글(.public-content-card)에는 좌우 패딩이 없어 본문만 36px 안쪽으로
+   들어가 보였다. 폭을 맞추려고 뺀다. */
 .public-content :deep(.block-renderer) {
-  padding: 0 36px;
+  padding: 0;
 }
 
 /* ── Tags footer ── */
 .public-content-tags {
-  margin: 40px 36px 0;
+  margin: 40px 0 0;
   padding-top: 20px;
   border-top: 1px solid var(--theme-line);
   display: flex;

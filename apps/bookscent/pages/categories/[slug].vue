@@ -76,7 +76,13 @@
       </section>
     </main>
 
-    <DefaultThemeFooter :columns="footerColumns" :imprint="footerImprint" />
+    <!-- 백엔드 footer 메뉴도 없고 코드 폴백(_fallbackFooter)도 비어 있으면
+         빈 푸터 틀만 남으므로 아예 렌더하지 않는다. -->
+    <DefaultThemeFooter
+      v-if="footerColumns.length"
+      :columns="footerColumns"
+      :imprint="footerImprint"
+    />
   </div>
 </template>
 
@@ -144,9 +150,9 @@ useHead(() => ({
 
 
 const _fallbackFooter = [
-  { title: 'Template', body: '코드로 정의된 Template 안에서만 레이아웃이 결정됩니다.' },
-  { title: 'StyleFamily', body: '색·타이포·여백은 미리 정의된 family 중에서 선택됩니다.' },
-  { title: 'Blocks', body: 'Markdown 안의 허용된 Block 만으로 표현이 확장됩니다.' },
+  // { title: 'Template', body: '코드로 정의된 Template 안에서만 레이아웃이 결정됩니다.' },
+  // { title: 'StyleFamily', body: '색·타이포·여백은 미리 정의된 family 중에서 선택됩니다.' },
+  // { title: 'Blocks', body: 'Markdown 안의 허용된 Block 만으로 표현이 확장됩니다.' },
 ]
 const _dynamicFooter = useSiteFooterColumns()
 const footerColumns = computed(() => _dynamicFooter.value.length ? _dynamicFooter.value : _fallbackFooter)

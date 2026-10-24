@@ -3,9 +3,11 @@
     <main class="category-shell">
       <template v-if="category">
         <header class="category-head">
-          <p class="category-eyebrow">CATEGORY</p>
           <h1>{{ category.name }}</h1>
-          <p class="category-meta">{{ total }}개의 글</p>
+          <div class="category-meta-row">
+            <p class="category-meta">{{ total }}개의 글</p>
+            <NuxtLink v-if="isAdmin" to="/backend/posts/new" class="category-new">등록</NuxtLink>
+          </div>
         </header>
 
         <section v-if="items.length" class="category-grid">
@@ -76,7 +78,13 @@
       </section>
     </main>
 
-    <DefaultThemeFooter :columns="footerColumns" :imprint="footerImprint" />
+    <!-- 백엔드 footer 메뉴도 없고 코드 폴백(_fallbackFooter)도 비어 있으면
+         빈 푸터 틀만 남으므로 아예 렌더하지 않는다. -->
+    <DefaultThemeFooter
+      v-if="footerColumns.length"
+      :columns="footerColumns"
+      :imprint="footerImprint"
+    />
   </div>
 </template>
 
@@ -108,12 +116,23 @@ type Response = {
   authorMap: Record<string, AuthorInfo>
 }
 
-definePageMeta({ layout: 'content' })
+definePageMeta({
+  layout: 'content',
+  // 메뉴가 /categories?category=<슬러그> 로도 보내므로 그 경로도 이 페이지가 받는다.
+  // alias 로 들어오면 params 가 비어서 아래 slug 가 query 로 폴백한다.
+  alias: ['/categories'],
+})
 
 const route = useRoute()
 const apiBase = useApiBase()
 
-const slug = computed(() => String(route.params.slug || ''))
+// 등록 버튼은 admin 이상에게만 보인다. (super 도 통과)
+// 로그인 정보는 클라이언트에서만 받아오므로 버튼도 hydration 뒤에 나타난다.
+const { hasAccess, fetchUser } = useBlockAuth()
+const isAdmin = computed(() => hasAccess('admin'))
+onMounted(fetchUser)
+
+const slug = computed(() => String(route.params.slug || route.query.category || ''))
 const url = computed(
   () => `${apiBase}/api/public/categories/${encodeURIComponent(slug.value)}?type=post`,
 )
@@ -144,9 +163,9 @@ useHead(() => ({
 
 
 const _fallbackFooter = [
-  { title: 'Template', body: '코드로 정의된 Template 안에서만 레이아웃이 결정됩니다.' },
-  { title: 'StyleFamily', body: '색·타이포·여백은 미리 정의된 family 중에서 선택됩니다.' },
-  { title: 'Blocks', body: 'Markdown 안의 허용된 Block 만으로 표현이 확장됩니다.' },
+  // { title: 'Template', body: '코드로 정의된 Template 안에서만 레이아웃이 결정됩니다.' },
+  // { title: 'StyleFamily', body: '색·타이포·여백은 미리 정의된 family 중에서 선택됩니다.' },
+  // { title: 'Blocks', body: 'Markdown 안의 허용된 Block 만으로 표현이 확장됩니다.' },
 ]
 const _dynamicFooter = useSiteFooterColumns()
 const footerColumns = computed(() => _dynamicFooter.value.length ? _dynamicFooter.value : _fallbackFooter)
@@ -174,14 +193,28 @@ if (error.value) {
   padding-bottom: 20px;
   border-bottom: 1px solid var(--theme-line);
 }
-.category-eyebrow {
-  margin: 0 0 10px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  color: var(--theme-accent, var(--theme-fg-dim));
-  text-transform: uppercase;
+.category-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
+.category-new {
+  flex: none;
+  padding: 6px 18px;
+  border: 1px solid var(--theme-fg);
+  background: var(--theme-fg);
+  color: var(--theme-bg);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.category-new:hover {
+  opacity: 0.85;
+}
+
 .category-head h1 {
   margin: 0 0 8px;
   font-family: var(--theme-serif, var(--theme-sans));
