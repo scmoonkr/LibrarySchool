@@ -602,7 +602,7 @@ async function lookupItemId() {
 }
 
 // ── crawling (알라딘 상세 재수집) ────────────────────────────
-// form.item_id 로 CrawlingBooks 의 detailByItemid 를 실행해 알라딘 상세를
+// form.item_id 로 서버의 알라딘 수집기(modules/crawl)를 돌려 상세를
 // Reading.books 에 (재)저장하고, 응답(result.item)으로 폼을 채운다.
 // (KRIN manager/books drawer 의 crawling 과 동일하게 폼을 갱신한다.)
 const crawlLoading = ref(false)
