@@ -39,7 +39,7 @@ uploads/
 **/uploads/
 # 단, Nuxt 의 /uploads 프록시 라우트는 소스다. 디렉터리 이름이 uploads 라
 # 위 규칙에 걸리는데, 빠지면 배포본에서 미디어 이미지가 404 가 난다.
-!apps/libraryschool/server/routes/uploads/
+!apps/*/server/routes/uploads/
 
 # topical 은 LLM 으로 글을 만드는 작업 폴더다.
 # 내보낸 주제 json 과 LLM 결과물이 오가는 자리라 저장소에는 넣지 않는다.

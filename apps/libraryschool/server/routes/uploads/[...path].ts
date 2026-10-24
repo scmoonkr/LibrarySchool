@@ -57,5 +57,9 @@ export default defineEventHandler(async (event) => {
     appendResponseHeader(event, key, value);
   }
 
-  return response._data;
+  // ArrayBuffer 를 그대로 돌려주면 h3 가 JSON 으로 직렬화해 '{}'(2바이트)를 내보낸다.
+  // 헤더는 image/png 인데 본문만 깨지므로 눈치채기 어렵다. Buffer 로 바꿔 넘긴다.
+  const data = response._data as ArrayBuffer | Buffer | null | undefined;
+  if (data == null) return null;
+  return Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
 });
