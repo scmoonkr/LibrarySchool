@@ -38,6 +38,7 @@ import TabsBlock from './TabsBlock.vue'
 import PostListBlock from './PostListBlock.vue'
 import BoardBlock from './BoardBlock.vue'
 import ImageBlock from './ImageBlock.vue'
+import DonationTaxCreditBlock from './DonationTaxCreditBlock.vue'
 import BlockAccessGuard from './BlockAccessGuard.vue'
 import InsuranceCalculatorBlock from './insurance/InsuranceCalculatorBlock.vue'
 import InsurancePlanningBlock from './insurance/InsurancePlanning.vue'
@@ -80,6 +81,7 @@ const registry: Record<string, Component> = {
   postList: PostListBlock,
   board: BoardBlock,
   image: ImageBlock,
+  donationTaxCredit: DonationTaxCreditBlock,
   // ── insure 전용 ──
   insuranceCalculator: InsuranceCalculatorBlock,
   insurancePlanning:   InsurancePlanningBlock,

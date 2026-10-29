@@ -659,4 +659,30 @@ items: [
 ]
 :::`,
   },
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Donation tax credit — 기부금 세액공제 계산기 (커스텀 블록)
+  // ───────────────────────────────────────────────────────────────────────────
+  donationTaxCredit: {
+    label: '기부금 세액공제 계산기',
+    block: {
+      type: 'donationTaxCredit',
+      props: {
+        title: '기부금 세액공제 계산기',
+        subtitle: '근로소득금액과 기부금액을 입력하면 예상 세액공제액을 계산합니다.',
+        limitRate: 30,
+        threshold: 10000000,
+        rateLow: 15,
+        rateHigh: 30,
+      },
+    },
+    markdown: `:::donationTaxCredit
+title: 기부금 세액공제 계산기
+subtitle: 근로소득금액과 기부금액을 입력하면 예상 세액공제액을 계산합니다.
+limitRate: 30
+threshold: 10000000
+rateLow: 15
+rateHigh: 30
+:::`,
+  },
 }

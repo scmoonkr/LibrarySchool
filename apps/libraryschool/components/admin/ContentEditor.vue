@@ -512,6 +512,7 @@ const CUSTOM_BLOCK_OPTIONS = [
   { value: 'insurancePlanning',   label: '보험 설계 제안서', site: 'insure' },
   { value: 'insuranceAnalysis',   label: '보험 설계 관리',   site: 'insure' },
   { value: 'insureLocation',      label: '오시는 길',         site: 'insure' },
+  { value: 'donationTaxCredit',   label: '기부금 세액공제 계산기', site: 'libraryschool' },
 ]
 
 const TEMPLATE_OPTIONS = [
@@ -590,6 +591,7 @@ const TEXT_TEMPLATES: Record<string, string> = {
   insurancePlanning: `:::insurancePlanning\nid: 레코드ID를_입력하세요\n:::`,
   insuranceAnalysis: `:::insuranceAnalysis\ntitle: 보험 설계 관리\n:::`,
   insureLocation: `:::insureLocation\ntitle: 위치 및 연락처\nsubtitle: 지에이코리아 휴먼선운사업부 | 오시는 길을 | 안내해 드립니다.\naddress: ( 22140) 주안중로 25 (주안동 169, 신성쇼핑 708호)\nphone: 032-424-7726\nfax: 032-429-4004\ndirections: 경인1호선 주안역 1번출구 도보 430m | 인천2호선 시민공원(문화창작지대)역 1번출구 770m\nmapImageId: \n:::`,
+  donationTaxCredit: `:::donationTaxCredit\ntitle: 기부금 세액공제 계산기\nsubtitle: 근로소득금액과 기부금액을 입력하면 예상 세액공제액을 계산합니다.\nlimitRate: 30\nthreshold: 10000000\nrateLow: 15\nrateHigh: 30\n:::`,
 }
 
 function buildImageBlock(type: string, imageIds: string[]): string {

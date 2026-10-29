@@ -22,6 +22,7 @@ export const INITIAL_BLOCK_NAMES = [
   'insurancePlanning',
   'insuranceAnalysis',
   'insureLocation',
+  'donationTaxCredit',
 ]
 
 // access 옵션은 모든 블록에서 사용 가능한 범용 옵션입니다.
@@ -311,6 +312,22 @@ export const BLOCK_TYPES = {
       fax:        { type: 'string' },
       directions: { type: 'string' },
       mapImageId: { type: 'imageId' },
+    },
+  },
+
+  // 지정기부금 세액공제 인정 한도 계산기.
+  // - 세액공제 대상금액 한도 = 근로소득금액 × limitRate(%)
+  // - 세액공제액 = (대상금액 중 threshold 이하)×rateLow% + (threshold 초과분)×rateHigh%
+  donationTaxCredit: {
+    label: '기부금 세액공제 계산기',
+    requiresContent: false,
+    options: {
+      title:     { type: 'string' },
+      subtitle:  { type: 'string' },
+      limitRate: { type: 'number', min: 0, max: 100, default: 30 },       // 근로소득 대비 한도(%)
+      threshold: { type: 'number', min: 0, default: 10000000 },           // 고율 적용 경계(원)
+      rateLow:   { type: 'number', min: 0, max: 100, default: 15 },       // 경계 이하 공제율(%)
+      rateHigh:  { type: 'number', min: 0, max: 100, default: 30 },       // 경계 초과 공제율(%)
     },
   },
 }
