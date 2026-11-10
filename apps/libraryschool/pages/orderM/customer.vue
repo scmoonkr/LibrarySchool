@@ -208,7 +208,7 @@ const { navItems } = useOrderMenu()
 const apiBase = useApiBase()
 const API = `${apiBase}/api/orderm/customers`
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 100
 const isSidebarOpen = ref(false)
 const keyword = ref('')
 const page = ref(1)
@@ -379,6 +379,14 @@ async function remove() {
     isSaving.value = false
   }
 }
+
+// ESC 로 drawer 닫기.
+function onKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (isEditorOpen.value) closeEditor()
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>

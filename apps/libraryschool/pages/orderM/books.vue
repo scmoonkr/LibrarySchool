@@ -456,6 +456,14 @@ async function remove() {
     window.alert(err?.data?.message || '삭제에 실패했습니다.')
   }
 }
+
+// ESC 로 drawer 닫기.
+function onKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (drawerOpen.value) closeDetail()
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>

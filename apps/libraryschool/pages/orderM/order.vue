@@ -132,6 +132,13 @@
             </label>
 
             <label class="theme-form-field">
+              <span>주문상태</span>
+              <select v-model="form.status" name="status">
+                <option v-for="s in STATUSES" :key="s" :value="s">{{ s }}</option>
+              </select>
+            </label>
+
+            <label class="theme-form-field">
               <span>주문금액 <small class="order-price-hint">(주문도서 할인가 합계)</small></span>
               <input :value="formatPrice(form.order_price)" name="order_price" readonly />
             </label>
@@ -161,6 +168,11 @@
               <input v-model="form.payment_date" name="payment_date" type="date" />
             </label>
           </div>
+
+          <p v-if="selectedCustomer?.incharge?.length" class="order-incharge-list">
+            <span class="order-incharge-list-label">담당자</span>
+            {{ inchargeSummary }}
+          </p>
 
           <label class="theme-form-field">
             <span>비고</span>
@@ -315,8 +327,8 @@ import OrderProgressModal from '~/components/orderM/OrderProgressModal.vue'
 // 로그인/권한이 준비되면 middleware: 'backend' 를 추가한다.
 definePageMeta({ layout: 'insure' })
 
-// 주문상태: 견적요청 → 주문 → 발주 → 입고 → 출고 → 계산서발행 → 입금
-const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금', '취소'] as const
+// 주문상태: 상담 → 견적요청 → 주문 → 발주 → 입고 → 출고 → 계산서발행 → 입금
+const STATUSES = ['상담', '견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금', '취소'] as const
 type OrderStatus = typeof STATUSES[number]
 
 type Order = {
@@ -342,7 +354,7 @@ const { navItems } = useOrderMenu()
 const apiBase = useApiBase()
 const API = `${apiBase}/api/orderm/orders`
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 100
 const isSidebarOpen = ref(false)
 
 // ── 주문도서검색: ISBN·서명으로 주문도서 조회 ────────────────
@@ -432,6 +444,7 @@ const paged = computed(() => filtered.value.slice((page.value - 1) * PAGE_SIZE, 
 watch([dateFrom, dateTo, statusFilter, keyword], () => { page.value = 1 })
 
 const STATUS_CLASS: Record<OrderStatus, string> = {
+  상담: 'is-consult',
   견적요청: 'is-quote',
   주문: 'is-order',
   발주: 'is-purchase',
@@ -515,11 +528,13 @@ function openCreate() {
   editingNo.value = null
   resetForm()
   isEditorOpen.value = true
+  loadCustomerList()
 }
 function openEdit(item: Order) {
   editingNo.value = item.orderno
   resetForm(item)
   isEditorOpen.value = true
+  loadCustomerList()
 }
 function closeEditor() {
   isEditorOpen.value = false
@@ -531,9 +546,10 @@ function goToOrderList() {
   navigateTo(`/orderM/orderList?orderNo=${editingNo.value}`)
 }
 
-// drawer 헤더의 상태 스텝. 순서는 견적요청 → 주문 → 발주 → 입고 → 출고 → 계산서발행 → 입금.
+// drawer 헤더의 상태 스텝. 순서는 상담 → 견적요청 → 주문 → 발주 → 입고 → 출고 → 계산서발행 → 입금.
 // '입고'는 입고검수(스캔)에서 정해지는 값이라 버튼으로 바꾸지 않는다.
 const STATUS_STEPS: { value: OrderStatus; label: string; clickable: boolean }[] = [
+  { value: '상담', label: '상담', clickable: true },
   { value: '견적요청', label: '견적', clickable: true },
   { value: '주문', label: '주문', clickable: true },
   { value: '발주', label: '발주', clickable: true },
@@ -706,31 +722,47 @@ type CustomerLite = {
   name: string
   branch?: string
   bizno?: string
-  incharge?: { name?: string }[]
+  incharge?: { name?: string; phone?: string; dept?: string }[]
 }
 const isCustomerSearchOpen = ref(false)
 const custKeyword = ref('')
 const custLoading = ref(false)
 const customerList = ref<CustomerLite[]>([])
 
+// 최초 1회만 전체 거래처 목록을 불러온다. (검색/비고 상단 담당자 표시 모두 클라이언트에서 처리)
+async function loadCustomerList() {
+  if (customerList.value.length) return
+  custLoading.value = true
+  try {
+    const res = await $fetch<{ ok: boolean; data: CustomerLite[] }>(`${apiBase}/api/orderm/customers`, {
+      credentials: 'include',
+    })
+    customerList.value = res.data ?? []
+  } catch {
+    customerList.value = []
+  } finally {
+    custLoading.value = false
+  }
+}
+
 async function openCustomerSearch() {
   isCustomerSearchOpen.value = true
   custKeyword.value = ''
-  // 최초 1회만 목록을 불러온다. (검색은 클라이언트에서)
-  if (!customerList.value.length) {
-    custLoading.value = true
-    try {
-      const res = await $fetch<{ ok: boolean; data: CustomerLite[] }>(`${apiBase}/api/orderm/customers`, {
-        credentials: 'include',
-      })
-      customerList.value = res.data ?? []
-    } catch {
-      customerList.value = []
-    } finally {
-      custLoading.value = false
-    }
-  }
+  await loadCustomerList()
 }
+
+// 주문서의 고객명(+지점) 과 일치하는 거래처. 담당자(이름/전화번호/부서명) 표시용.
+const selectedCustomer = computed(() => {
+  const name = form.customer.trim()
+  if (!name) return null
+  const candidates = customerList.value.filter((c) => c.name === name)
+  if (candidates.length <= 1) return candidates[0] ?? null
+  return candidates.find((c) => (c.branch ?? '') === (form.branch ?? '')) ?? candidates[0]
+})
+// "지길용 / 010-7181-3428 / 담당, 배재한 대리 / 010-3377-9742 / 구매" 형식.
+const inchargeSummary = computed(() => (selectedCustomer.value?.incharge ?? [])
+  .map((p) => [p.name || '-', p.phone || '-', p.dept || '-'].join(' / '))
+  .join(', '))
 function closeCustomerSearch() {
   isCustomerSearchOpen.value = false
 }
@@ -796,6 +828,17 @@ async function remove() {
     isSaving.value = false
   }
 }
+
+// ESC 로 닫기 — 열려있는 것 중 가장 위(거래처검색 > 처리현황 > 주문도서검색 > 신규/수정 drawer) 하나만 닫는다.
+function onKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (isCustomerSearchOpen.value) closeCustomerSearch()
+  else if (isProgressOpen.value) isProgressOpen.value = false
+  else if (isSearchOpen.value) isSearchOpen.value = false
+  else if (isEditorOpen.value) closeEditor()
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>
@@ -816,6 +859,7 @@ async function remove() {
   white-space: nowrap;
   border: 1px solid transparent;
 }
+.order-status.is-consult  { background: #f5f3ff; color: #5b21b6; border-color: #ddd6fe; }
 .order-status.is-quote    { background: #eef2ff; color: #3730a3; border-color: #c7d2fe; }
 .order-status.is-order    { background: #ecfeff; color: #155e75; border-color: #a5f3fc; }
 .order-status.is-purchase { background: #fef3c7; color: #92400e; border-color: #fde68a; }
@@ -825,9 +869,27 @@ async function remove() {
 .order-status.is-paid     { background: #ecfdf5; color: #047857; border-color: #6ee7b7; }
 .order-status.is-cancel   { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
 
-/* drawer */
+/* drawer — 내용이 많아 스크롤이 생기던 것을 줄여본다(패딩/줄간격을 전체적으로 조금씩 좁힘). */
 .theme-backend-user-drawer {
   width: min(100%, 720px);
+  padding: 18px 22px;
+}
+.theme-backend-user-drawer-head {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+}
+.theme-backend-user-drawer .theme-backend-form {
+  gap: 18px;
+}
+.theme-backend-user-drawer .theme-backend-form-grid {
+  gap: 12px 18px;
+}
+.theme-backend-user-drawer .theme-form-field {
+  gap: 6px;
+}
+.theme-backend-user-drawer .theme-form-field input,
+.theme-backend-user-drawer .theme-form-field select {
+  min-height: 40px;
 }
 .order-field-wide {
   grid-column: 1 / -1;
@@ -845,6 +907,19 @@ async function remove() {
 .order-quote-links a {
   color: var(--theme-fg);
   font-weight: 600;
+}
+
+.order-incharge-list {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.order-incharge-list-label {
+  color: var(--theme-fg-faint);
+  font-weight: 600;
+  margin-right: 8px;
 }
 
 .order-actions {

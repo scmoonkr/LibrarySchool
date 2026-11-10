@@ -17,8 +17,8 @@ import {
 } from './orderlist.repository.js';
 import { insertBookIfMissing } from './book.repository.js';
 
-// 주문상태: 견적요청(기본) → 주문 → 발주 → 입고 → 출고
-const STATUSES = ['견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금', '취소'];
+// 주문상태: 상담 → 견적요청(기본) → 주문 → 발주 → 입고 → 출고
+const STATUSES = ['상담', '견적요청', '주문', '발주', '입고', '출고', '계산서발행', '입금', '취소'];
 const DEFAULT_STATUS = '견적요청';
 
 function appError(message, statusCode = 400) {

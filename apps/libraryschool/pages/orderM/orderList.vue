@@ -1203,6 +1203,19 @@ async function remove() {
     isSaving.value = false
   }
 }
+
+// ESC 로 닫기 — 열려있는 것 중 가장 위(알라딘 > 도서검색 > 신규/수정 drawer > 처리현황 > 발주 > 출고) 하나만 닫는다.
+function onKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (isAladinOpen.value) isAladinOpen.value = false
+  else if (isBookSearchOpen.value) closeBookSearch()
+  else if (isEditorOpen.value) closeEditor()
+  else if (isProgressOpen.value) isProgressOpen.value = false
+  else if (isPurchaseOpen.value) isPurchaseOpen.value = false
+  else if (isShipOpen.value) isShipOpen.value = false
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>

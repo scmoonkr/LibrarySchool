@@ -797,6 +797,15 @@ async function dreamer() {
     busy.value = false
   }
 }
+
+// ESC 로 모달 닫기 — 도서검색이 서명편집 위에 뜰 수 있어 먼저 닫는다.
+function onKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (isBookSearchOpen.value) closeBookSearch()
+  else if (isEditOpen.value) closeEdit()
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>

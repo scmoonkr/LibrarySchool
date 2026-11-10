@@ -439,6 +439,14 @@ async function exportExcel() {
   const base = (orderNo.value || '').trim() || 'order'
   XLSX.writeFile(wb, `${base}.xlsx`)
 }
+
+// ESC 로 모달 닫기.
+function onKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (isBasketModalOpen.value) isBasketModalOpen.value = false
+}
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>
